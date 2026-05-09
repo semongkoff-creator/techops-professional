@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=DM+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-container": "#eeefff",
+                    "on-primary-fixed": "#00174b",
+                    "surface-container": "#ededf9",
+                    "on-background": "#191b23",
+                    "on-tertiary-fixed": "#360f00",
+                    "on-tertiary": "#ffffff",
+                    "on-tertiary-container": "#ffede6",
+                    "surface-container-highest": "#e1e2ed",
+                    "surface-container-high": "#e7e7f3",
+                    "surface-tint": "#0053db",
+                    "tertiary-container": "#bc4800",
+                    "outline-variant": "#c3c6d7",
+                    "error-container": "#ffdad6",
+                    "surface-container-low": "#f3f3fe",
+                    "tertiary": "#943700",
+                    "on-surface": "#191b23",
+                    "primary-fixed": "#dbe1ff",
+                    "on-secondary-fixed": "#2a1700",
+                    "on-error-container": "#93000a",
+                    "inverse-primary": "#b4c5ff",
+                    "on-secondary-container": "#684000",
+                    "secondary": "#855300",
+                    "surface": "#faf8ff",
+                    "background": "#faf8ff",
+                    "on-primary": "#ffffff",
+                    "inverse-on-surface": "#f0f0fb",
+                    "on-secondary-fixed-variant": "#653e00",
+                    "secondary-container": "#fea619",
+                    "surface-dim": "#d9d9e5",
+                    "surface-bright": "#faf8ff",
+                    "error": "#ba1a1a",
+                    "primary-fixed-dim": "#b4c5ff",
+                    "surface-variant": "#e1e2ed",
+                    "on-error": "#ffffff",
+                    "on-secondary": "#ffffff",
+                    "on-primary-fixed-variant": "#003ea8",
+                    "secondary-fixed": "#ffddb8",
+                    "tertiary-fixed": "#ffdbcd",
+                    "on-surface-variant": "#434655",
+                    "on-tertiary-fixed-variant": "#7d2d00",
+                    "primary-container": "#2563eb",
+                    "inverse-surface": "#2e3039",
+                    "tertiary-fixed-dim": "#ffb596",
+                    "surface-container-lowest": "#ffffff",
+                    "secondary-fixed-dim": "#ffb95f",
+                    "primary": "#004ac6",
+                    "outline": "#737686"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "lg": "24px",
+                    "gutter": "16px",
+                    "sm": "8px",
+                    "md": "16px",
+                    "xs": "4px",
+                    "xl": "32px",
+                    "margin": "16px",
+                    "base": "4px"
+            },
+            "fontFamily": {
+                    "code-brand": ["DM Mono"],
+                    "display": ["Inter"],
+                    "label-md": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "body-md": ["Inter"],
+                    "headline-md": ["Inter"]
+            },
+            "fontSize": {
+                    "code-brand": ["18px", {"lineHeight": "1", "fontWeight": "500"}],
+                    "display": ["32px", {"lineHeight": "1.2", "fontWeight": "700"}],
+                    "label-md": ["12px", {"lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "600"}],
+                    "headline-lg": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                    "body-lg": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "body-md": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "headline-md": ["20px", {"lineHeight": "1.4", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #F0F4FF;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body-md text-on-background min-h-screen pb-24">
+<!-- Top AppBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-4 h-16 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 shadow-sm">
+<div class="flex items-center gap-3">
+<button class="p-2 active:opacity-70 transition-opacity">
+<span class="material-symbols-outlined text-blue-600 dark:text-blue-400">menu</span>
+</button>
+<h1 class="text-xl font-bold tracking-tight text-blue-600 dark:text-blue-400 font-display">TechOps</h1>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 active:opacity-70 transition-opacity">
+<span class="material-symbols-outlined text-slate-500">notifications</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center text-white font-label-md">
+                JS
+            </div>
+</div>
+</header>
+<main class="pt-20 px-4 max-w-5xl mx-auto">
+<!-- Header Section -->
+<section class="mb-6">
+<h2 class="font-display font-bold text-headline-lg text-on-background">Export Report</h2>
+<p class="text-on-surface-variant font-body-md mt-1">Configure and generate executive operational summaries.</p>
+</section>
+<!-- Filters Card -->
+<div class="bg-white rounded-xl shadow-[0_4px_16px_rgba(0,0,0,0.08)] p-6 mb-gutter">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+<div class="space-y-2">
+<label class="font-label-md text-on-surface-variant">Leader</label>
+<div class="relative">
+<select class="w-full bg-surface-container-low border border-outline-variant rounded-lg py-3 px-4 appearance-none focus:outline-none focus:border-primary transition-colors font-body-md text-on-surface">
+<option>All Leaders</option>
+<option>Michael Chen</option>
+<option>Sarah Johnson</option>
+<option>David Miller</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
+</div>
+</div>
+<div class="space-y-2">
+<label class="font-label-md text-on-surface-variant">Team</label>
+<div class="relative">
+<select class="w-full bg-surface-container-low border border-outline-variant rounded-lg py-3 px-4 appearance-none focus:outline-none focus:border-primary transition-colors font-body-md text-on-surface">
+<option>All Teams</option>
+<option>Cloud Infrastructure</option>
+<option>DevOps Security</option>
+<option>Network Ops</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
+</div>
+</div>
+</div>
+<!-- Toggle Switch -->
+<div class="flex items-center justify-center mb-6">
+<div class="bg-surface-container-high p-1 rounded-full flex w-full max-w-md">
+<button class="flex-1 py-2 px-4 rounded-full bg-white shadow-sm font-label-md text-primary transition-all">
+                        Executive Summary
+                    </button>
+<button class="flex-1 py-2 px-4 rounded-full text-on-surface-variant font-label-md transition-all hover:text-on-surface">
+                        Detailed Data
+                    </button>
+</div>
+</div>
+<!-- Filename Field -->
+<div class="space-y-2 mb-8">
+<label class="font-label-md text-on-surface-variant">Filename</label>
+<div class="flex items-center bg-surface-container-low border border-outline-variant rounded-lg px-4 py-3 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/20 transition-all">
+<span class="material-symbols-outlined text-on-surface-variant mr-3">description</span>
+<input class="bg-transparent border-none outline-none w-full font-body-md text-on-surface focus:ring-0 p-0" type="text" value="executive_summary_q1.pdf"/>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="flex flex-col sm:flex-row gap-4">
+<button class="flex-1 bg-primary text-white py-4 rounded-full font-label-md flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-md">
+<span class="material-symbols-outlined">picture_as_pdf</span>
+                    Export as PDF
+                </button>
+<button class="flex-1 bg-white border-2 border-primary text-primary py-4 rounded-full font-label-md flex items-center justify-center gap-2 hover:bg-primary/5 active:scale-95 transition-all">
+<span class="material-symbols-outlined">table_chart</span>
+                    Export as Excel
+                </button>
+</div>
+</div>
+<!-- Preview Card (Bento Style) -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
+<div class="md:col-span-2 bg-white rounded-xl shadow-[0_4px_16px_rgba(0,0,0,0.08)] overflow-hidden">
+<div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+<span class="font-label-md text-on-surface-variant uppercase tracking-wider">Report Preview</span>
+<span class="px-2 py-1 bg-primary/10 text-primary text-[10px] rounded font-bold uppercase">Live Preview</span>
+</div>
+<div class="p-6">
+<div class="h-48 rounded-lg bg-slate-100 flex items-center justify-center relative overflow-hidden">
+<img class="absolute inset-0 w-full h-full object-cover opacity-80" data-alt="A sophisticated data visualization dashboard showing multiple line graphs and bar charts representing quarterly business metrics. The interface uses a clean light-mode aesthetic with a professional blue and slate color palette. High-key lighting highlights the sharp, modern graphics and technical data points, creating a sense of clarity and operational control." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBZlTaAMhKqeHEdxts5MsE-lt4lwrxmiwz7V1YvJRuzj4DAM4UKKmpDyTxEzyCiabFBxSXJ4U3fkTLF9cOArMEPGK5mFgY1bkZsjgHDG-mEfFQEcO5M5oh25SFzw1F2lEhvcumRtJ_Y77TcL_Avnm1IKL5C6pxSVHDsbuVcCfqXVL6r0m65v-ytACCIAcCycZXSidq2Upf8qYMEOrPe4EaJ4_YO7UCpUCP2PERG5pS94Sj9_u-6XT3_mBnwZjA92qc3YR9UweeCfmzE"/>
+<div class="absolute inset-0 bg-gradient-to-t from-white/80 to-transparent"></div>
+<div class="relative z-10 text-center">
+<span class="material-symbols-outlined text-4xl text-primary mb-2">analytics</span>
+<p class="font-label-md text-on-surface">Data successfully aggregated for Q1</p>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-primary text-white rounded-xl shadow-[0_4px_16px_rgba(0,0,0,0.08)] p-6 flex flex-col justify-between">
+<div>
+<h3 class="font-display font-bold text-headline-md mb-2">Q1 Summary</h3>
+<p class="text-blue-100 text-body-md">Your team has completed 94% of operational targets this quarter.</p>
+</div>
+<div class="mt-8">
+<div class="flex items-center justify-between mb-2">
+<span class="text-sm font-label-md">Efficiency Score</span>
+<span class="text-sm font-bold">A+</span>
+</div>
+<div class="w-full bg-blue-900/30 h-2 rounded-full overflow-hidden">
+<div class="bg-white h-full w-[94%]"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Toast Notification (Floating) -->
+<div class="fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] animate-bounce-subtle">
+<div class="bg-slate-900 text-white px-6 py-3 rounded-full flex items-center gap-3 shadow-2xl">
+<span class="material-symbols-outlined text-green-400" data-weight="fill">check_circle</span>
+<span class="font-body-md">Laporan berhasil diunduh</span>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-6 py-3 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] rounded-t-2xl">
+<button class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined">home</span>
+<span class="font-inter text-[12px] font-medium mt-1">Home</span>
+</button>
+<button class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined">monitoring</span>
+<span class="font-inter text-[12px] font-medium mt-1">Monitoring</span>
+</button>
+<button class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined">description</span>
+<span class="font-inter text-[12px] font-medium mt-1">Laporan</span>
+</button>
+<button class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-inter text-[12px] font-medium mt-1">Analytics</span>
+</button>
+<button class="flex flex-col items-center justify-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded-xl px-3 py-1 active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">download</span>
+<span class="font-inter text-[12px] font-medium mt-1">Export</span>
+</button>
+</nav>
+<style>
+        @keyframes bounce-subtle {
+            0%, 100% { transform: translate(-50%, 0); }
+            50% { transform: translate(-50%, -10px); }
+        }
+        .animate-bounce-subtle {
+            animation: bounce-subtle 3s ease-in-out infinite;
+        }
+    </style>
+</body></html>

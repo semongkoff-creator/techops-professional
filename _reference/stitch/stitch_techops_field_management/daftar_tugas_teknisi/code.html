@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=DM+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-container": "#eeefff",
+                    "on-primary-fixed": "#00174b",
+                    "surface-container": "#ededf9",
+                    "on-background": "#191b23",
+                    "on-tertiary-fixed": "#360f00",
+                    "on-tertiary": "#ffffff",
+                    "on-tertiary-container": "#ffede6",
+                    "surface-container-highest": "#e1e2ed",
+                    "surface-container-high": "#e7e7f3",
+                    "surface-tint": "#0053db",
+                    "tertiary-container": "#bc4800",
+                    "outline-variant": "#c3c6d7",
+                    "error-container": "#ffdad6",
+                    "surface-container-low": "#f3f3fe",
+                    "tertiary": "#943700",
+                    "on-surface": "#191b23",
+                    "primary-fixed": "#dbe1ff",
+                    "on-secondary-fixed": "#2a1700",
+                    "on-error-container": "#93000a",
+                    "inverse-primary": "#b4c5ff",
+                    "on-secondary-container": "#684000",
+                    "secondary": "#855300",
+                    "surface": "#faf8ff",
+                    "background": "#faf8ff",
+                    "on-primary": "#ffffff",
+                    "inverse-on-surface": "#f0f0fb",
+                    "on-secondary-fixed-variant": "#653e00",
+                    "secondary-container": "#fea619",
+                    "surface-dim": "#d9d9e5",
+                    "surface-bright": "#faf8ff",
+                    "error": "#ba1a1a",
+                    "primary-fixed-dim": "#b4c5ff",
+                    "surface-variant": "#e1e2ed",
+                    "on-error": "#ffffff",
+                    "on-secondary": "#ffffff",
+                    "on-primary-fixed-variant": "#003ea8",
+                    "secondary-fixed": "#ffddb8",
+                    "tertiary-fixed": "#ffdbcd",
+                    "on-surface-variant": "#434655",
+                    "on-tertiary-fixed-variant": "#7d2d00",
+                    "primary-container": "#2563eb",
+                    "inverse-surface": "#2e3039",
+                    "tertiary-fixed-dim": "#ffb596",
+                    "surface-container-lowest": "#ffffff",
+                    "secondary-fixed-dim": "#ffb95f",
+                    "primary": "#004ac6",
+                    "outline": "#737686"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "lg": "24px",
+                    "gutter": "16px",
+                    "sm": "8px",
+                    "md": "16px",
+                    "xs": "4px",
+                    "xl": "32px",
+                    "margin": "16px",
+                    "base": "4px"
+            },
+            "fontFamily": {
+                    "code-brand": ["DM Mono"],
+                    "display": ["Inter"],
+                    "label-md": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "body-md": ["Inter"],
+                    "headline-md": ["Inter"]
+            },
+            "fontSize": {
+                    "code-brand": ["18px", {"lineHeight": "1", "fontWeight": "500"}],
+                    "display": ["32px", {"lineHeight": "1.2", "fontWeight": "700"}],
+                    "label-md": ["12px", {"lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "600"}],
+                    "headline-lg": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                    "body-lg": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "body-md": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "headline-md": ["20px", {"lineHeight": "1.4", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { background-color: #F0F4FF; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .custom-shadow { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body-md text-on-background min-h-screen pb-24">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-4 h-16 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 shadow-sm">
+<div class="flex items-center gap-3">
+<button class="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors rounded-full active:opacity-70 transition-opacity">
+<span class="material-symbols-outlined text-blue-600 dark:text-blue-400" data-icon="menu">menu</span>
+</button>
+<h1 class="font-inter text-slate-900 dark:text-slate-50 font-semibold text-xl font-bold tracking-tight text-blue-600 dark:text-blue-400">TechOps</h1>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors rounded-full active:opacity-70 transition-opacity">
+<span class="material-symbols-outlined text-slate-500" data-icon="notifications">notifications</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center">
+<span class="text-label-md font-label-md text-on-primary-fixed">JD</span>
+</div>
+</div>
+</header>
+<main class="mt-20 px-margin">
+<!-- Search Section -->
+<section class="mb-gutter">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline" data-icon="search">search</span>
+<input class="w-full pl-11 pr-4 py-3 bg-white border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-body-md text-on-surface custom-shadow" placeholder="Cari tugas..." type="text"/>
+</div>
+</section>
+<!-- Filter Section -->
+<section class="mb-lg overflow-x-auto no-scrollbar">
+<div class="flex gap-sm whitespace-nowrap pb-2">
+<button class="px-md py-2 rounded-full bg-primary text-on-primary text-label-md font-label-md transition-all active:scale-95">Semua</button>
+<button class="px-md py-2 rounded-full bg-white text-on-surface-variant border border-slate-100 text-label-md font-label-md transition-all active:scale-95">Belum Mulai</button>
+<button class="px-md py-2 rounded-full bg-white text-on-surface-variant border border-slate-100 text-label-md font-label-md transition-all active:scale-95">Sedang Berjalan</button>
+<button class="px-md py-2 rounded-full bg-white text-on-surface-variant border border-slate-100 text-label-md font-label-md transition-all active:scale-95">Selesai</button>
+</div>
+</section>
+<!-- Task List Section -->
+<section class="space-y-gutter">
+<!-- Card 1 -->
+<div class="bg-white rounded-xl p-gutter custom-shadow flex flex-col gap-md relative overflow-hidden group">
+<div class="flex justify-between items-start">
+<div class="space-y-1">
+<span class="px-3 py-1 rounded-full bg-error-container text-error text-[10px] font-bold uppercase tracking-wider">HIGH</span>
+<h3 class="font-headline-md text-headline-md text-on-surface mt-1">Instalasi Router Baru</h3>
+</div>
+<button class="p-1 text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]" data-icon="location_on">location_on</span>
+<span class="font-body-md text-body-md">Gedung Cyber Lt. 3</span>
+</div>
+<div class="flex items-center justify-between mt-xs">
+<div class="flex items-center gap-3">
+<div class="flex gap-1">
+<div class="w-3 h-3 rounded-full bg-primary"></div>
+<div class="w-3 h-3 rounded-full bg-primary"></div>
+<div class="w-3 h-3 rounded-full bg-surface-container-highest"></div>
+<div class="w-3 h-3 rounded-full bg-surface-container-highest"></div>
+</div>
+<span class="text-label-md font-label-md text-outline">2/4 Progress</span>
+</div>
+<span class="material-symbols-outlined text-primary" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-white rounded-xl p-gutter custom-shadow flex flex-col gap-md relative overflow-hidden">
+<div class="flex justify-between items-start">
+<div class="space-y-1">
+<span class="px-3 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant text-[10px] font-bold uppercase tracking-wider">MEDIUM</span>
+<h3 class="font-headline-md text-headline-md text-on-surface mt-1">Maintenance CCTV</h3>
+</div>
+<button class="p-1 text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]" data-icon="location_on">location_on</span>
+<span class="font-body-md text-body-md">Area Parkir Timur</span>
+</div>
+<div class="flex items-center justify-between mt-xs">
+<div class="flex items-center gap-3">
+<div class="flex gap-1">
+<div class="w-3 h-3 rounded-full bg-secondary-container"></div>
+<div class="w-3 h-3 rounded-full bg-surface-container-highest"></div>
+<div class="w-3 h-3 rounded-full bg-surface-container-highest"></div>
+<div class="w-3 h-3 rounded-full bg-surface-container-highest"></div>
+</div>
+<span class="text-label-md font-label-md text-outline">1/4 Progress</span>
+</div>
+<span class="material-symbols-outlined text-primary" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="bg-white rounded-xl p-gutter custom-shadow flex flex-col gap-md relative overflow-hidden">
+<div class="flex justify-between items-start">
+<div class="space-y-1">
+<span class="px-3 py-1 rounded-full bg-tertiary-fixed text-on-tertiary-fixed-variant text-[10px] font-bold uppercase tracking-wider">LOW</span>
+<h3 class="font-headline-md text-headline-md text-on-surface mt-1">Update Software Gateway</h3>
+</div>
+<button class="p-1 text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]" data-icon="location_on">location_on</span>
+<span class="font-body-md text-body-md">Ruang Server B</span>
+</div>
+<div class="flex items-center justify-between mt-xs">
+<div class="flex items-center gap-3">
+<div class="flex gap-1">
+<div class="w-3 h-3 rounded-full bg-tertiary"></div>
+<div class="w-3 h-3 rounded-full bg-tertiary"></div>
+<div class="w-3 h-3 rounded-full bg-tertiary"></div>
+<div class="w-3 h-3 rounded-full bg-tertiary"></div>
+</div>
+<span class="text-label-md font-label-md text-outline">4/4 Progress</span>
+</div>
+<div class="flex items-center gap-1 text-tertiary">
+<span class="material-symbols-outlined text-[20px]" data-icon="check_circle">check_circle</span>
+<span class="text-label-md font-label-md">Selesai</span>
+</div>
+</div>
+</div>
+<!-- Empty State / Image Decoration -->
+<div class="mt-xl overflow-hidden rounded-2xl h-48 custom-shadow bg-surface-container-high relative flex items-center justify-center">
+<img class="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-30" data-alt="A clean, professionally lit data center server room with glowing blue LED lights on server racks. The image uses a light-mode aesthetic with bright white floors and high-key lighting to match a modern corporate SaaS interface. The mood is efficient, high-tech, and organized, emphasizing operational control and reliability in a professional TechOps environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB3w0FMC9iGw-5yt-7JzNbiHjta8Gxy2PwycgNk-W_jYFc2FIjHgxlkvvxlBfKExkoFn-OKn7Qtm6NS9Z1rOdykqnRSD7LCnmg0GL4IEMHGydkPuPWG1_mapJIgFGHOJ_mDnpMUWtY2vojp4yVUbUhEeU1VPrFT5D3yR4CtWqzr5bBt_taFFCjiN4pH2uDBf_zNkKUefPcrU0pE0tXxxaqXyyg51gKWGZ5eRAkltIuE4G2Ry3A6D_F6Y4dEJpVPpbn0tii1fMA6Xnif"/>
+<div class="relative text-center p-md">
+<p class="font-headline-md text-on-surface-variant">Tetap Produktif</p>
+<p class="font-body-md text-outline mt-1">Selesaikan tugas hari ini dengan tepat waktu.</p>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-6 py-3 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] rounded-t-2xl">
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 hover:text-blue-500 dark:hover:text-blue-300 active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-inter text-[12px] font-medium">Home</span>
+</div>
+<div class="flex flex-col items-center justify-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded-xl px-3 py-1 hover:text-blue-500 dark:hover:text-blue-300 active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined" data-icon="assignment" style="font-variation-settings: 'FILL' 1;">assignment</span>
+<span class="font-inter text-[12px] font-medium">Tugas</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 hover:text-blue-500 dark:hover:text-blue-300 active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span class="font-inter text-[12px] font-medium">Laporan</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 hover:text-blue-500 dark:hover:text-blue-300 active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-inter text-[12px] font-medium">Profil</span>
+</div>
+</nav>
+</body></html>

@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>TechOps Supervisor Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-primary-container": "#eeefff",
+                      "on-primary-fixed": "#00174b",
+                      "surface-container": "#ededf9",
+                      "on-background": "#191b23",
+                      "on-tertiary-fixed": "#360f00",
+                      "on-tertiary": "#ffffff",
+                      "on-tertiary-container": "#ffede6",
+                      "surface-container-highest": "#e1e2ed",
+                      "surface-container-high": "#e7e7f3",
+                      "surface-tint": "#0053db",
+                      "tertiary-container": "#bc4800",
+                      "outline-variant": "#c3c6d7",
+                      "error-container": "#ffdad6",
+                      "surface-container-low": "#f3f3fe",
+                      "tertiary": "#943700",
+                      "on-surface": "#191b23",
+                      "primary-fixed": "#dbe1ff",
+                      "on-secondary-fixed": "#2a1700",
+                      "on-error-container": "#93000a",
+                      "inverse-primary": "#b4c5ff",
+                      "on-secondary-container": "#684000",
+                      "secondary": "#855300",
+                      "surface": "#faf8ff",
+                      "background": "#faf8ff",
+                      "on-primary": "#ffffff",
+                      "inverse-on-surface": "#f0f0fb",
+                      "on-secondary-fixed-variant": "#653e00",
+                      "secondary-container": "#fea619",
+                      "surface-dim": "#d9d9e5",
+                      "surface-bright": "#faf8ff",
+                      "error": "#ba1a1a",
+                      "primary-fixed-dim": "#b4c5ff",
+                      "surface-variant": "#e1e2ed",
+                      "on-error": "#ffffff",
+                      "on-secondary": "#ffffff",
+                      "on-primary-fixed-variant": "#003ea8",
+                      "secondary-fixed": "#ffddb8",
+                      "tertiary-fixed": "#ffdbcd",
+                      "on-surface-variant": "#434655",
+                      "on-tertiary-fixed-variant": "#7d2d00",
+                      "primary-container": "#2563eb",
+                      "inverse-surface": "#2e3039",
+                      "tertiary-fixed-dim": "#ffb596",
+                      "surface-container-lowest": "#ffffff",
+                      "secondary-fixed-dim": "#ffb95f",
+                      "primary": "#004ac6",
+                      "outline": "#737686"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "lg": "24px",
+                      "gutter": "16px",
+                      "sm": "8px",
+                      "md": "16px",
+                      "xs": "4px",
+                      "xl": "32px",
+                      "margin": "16px",
+                      "base": "4px"
+              },
+              "fontFamily": {
+                      "code-brand": ["DM Mono"],
+                      "display": ["Inter"],
+                      "label-md": ["Inter"],
+                      "headline-lg": ["Inter"],
+                      "body-lg": ["Inter"],
+                      "body-md": ["Inter"],
+                      "headline-md": ["Inter"]
+              },
+              "fontSize": {
+                      "code-brand": ["18px", {"lineHeight": "1", "fontWeight": "500"}],
+                      "display": ["32px", {"lineHeight": "1.2", "fontWeight": "700"}],
+                      "label-md": ["12px", {"lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "600"}],
+                      "headline-lg": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                      "body-lg": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                      "body-md": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                      "headline-md": ["20px", {"lineHeight": "1.4", "fontWeight": "600"}]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4ff;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .card-shadow {
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen pb-24">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-4 h-16 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 shadow-sm">
+<div class="flex items-center gap-3">
+<button class="material-symbols-outlined text-slate-500 hover:bg-slate-50 transition-colors p-2 rounded-full" data-icon="menu">menu</button>
+<span class="text-xl font-bold tracking-tight text-blue-600 dark:text-blue-400 font-inter">TechOps</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="relative">
+<button class="material-symbols-outlined text-slate-500 hover:bg-slate-50 transition-colors p-2 rounded-full" data-icon="notifications">notifications</button>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full border-2 border-white"></span>
+</div>
+<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-white font-semibold text-label-md">SP</div>
+</div>
+</header>
+<main class="pt-20 px-margin max-w-7xl mx-auto space-y-gutter">
+<!-- Greeting & Role Section -->
+<section class="flex flex-col md:flex-row md:items-center justify-between gap-4 py-4">
+<div>
+<h1 class="font-display text-headline-lg text-on-surface">Halo, Bapak/Ibu</h1>
+<p class="text-body-md text-on-surface-variant mt-1">Pantau performa operasional hari ini secara real-time.</p>
+</div>
+<div class="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-full border border-blue-100 self-start">
+<span class="material-symbols-outlined text-primary text-[18px]" data-icon="verified_user">verified_user</span>
+<span class="text-label-md text-primary font-bold">Supervisor</span>
+</div>
+</section>
+<!-- KPI Bento Grid -->
+<section class="grid grid-cols-2 md:grid-cols-4 gap-gutter">
+<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-slate-50">
+<div class="flex items-center justify-between mb-2">
+<span class="material-symbols-outlined text-primary" data-icon="assignment">assignment</span>
+<span class="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">+12%</span>
+</div>
+<p class="text-label-md text-on-surface-variant">Total Tugas</p>
+<p class="text-headline-lg font-bold text-on-surface">47</p>
+</div>
+<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-slate-50">
+<div class="flex items-center justify-between mb-2">
+<span class="material-symbols-outlined text-secondary" data-icon="task_alt">task_alt</span>
+<span class="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">Target 80%</span>
+</div>
+<p class="text-label-md text-on-surface-variant">Completion</p>
+<p class="text-headline-lg font-bold text-on-surface">78%</p>
+</div>
+<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-slate-50">
+<div class="flex items-center justify-between mb-2">
+<span class="material-symbols-outlined text-primary" data-icon="groups">groups</span>
+<span class="text-xs font-medium text-on-surface-variant bg-slate-100 px-2 py-0.5 rounded-full">15 Total</span>
+</div>
+<p class="text-label-md text-on-surface-variant">Teknisi Aktif</p>
+<p class="text-headline-lg font-bold text-on-surface">12</p>
+</div>
+<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-slate-50">
+<div class="flex items-center justify-between mb-2">
+<span class="material-symbols-outlined text-error" data-icon="warning">warning</span>
+<span class="text-xs font-medium text-error bg-error-container px-2 py-0.5 rounded-full">Urgent</span>
+</div>
+<p class="text-label-md text-on-surface-variant">Masalah</p>
+<p class="text-headline-lg font-bold text-on-surface">4</p>
+</div>
+</section>
+<!-- Monitoring & Alerts Layout -->
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
+<!-- Technician Monitoring -->
+<div class="lg:col-span-2 space-y-gutter">
+<div class="flex items-center justify-between">
+<h2 class="font-headline-md text-on-surface">Monitoring Teknisi</h2>
+<button class="text-primary text-label-md flex items-center gap-1 hover:underline">
+                        Lihat Semua <span class="material-symbols-outlined text-[16px]" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-md">
+<!-- Tech Card 1 -->
+<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-slate-50 relative overflow-hidden group">
+<div class="flex items-start gap-3">
+<div class="w-12 h-12 rounded-full overflow-hidden bg-slate-100">
+<img class="w-full h-full object-cover" data-alt="A close-up portrait of a professional male technician in a clean blue uniform, smiling confidently. The lighting is soft and natural, coming from a modern office environment. The background is blurred to maintain focus on the technician, following a clean corporate TechOps aesthetic with a palette of whites and light blues." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAA1EuskiL15tOUncCMo-192ZfLsHKlfHi1LaqCPWPJbHAPSQrPMgVy9oujRdj_tUAkVX9KvTDbdAfbmkHCT1wR--iaHaPpl5YTRoWcg1czjXgoGepQbI-j56ScLeSkeXOIdPbshfPw8xqMI_GOBhoFbBxV7eEOuBYpAodWO41OE348K2eE9oZ1SQisDis6MMwiJiTzBO-T9sKL44JgoJMlwviMQJGw4LEMt9mcMaKGPxnMgoXraPYwWjIl7x2ce_FNZFu4SgHnJsNb"/>
+</div>
+<div class="flex-1">
+<p class="font-semibold text-on-surface">Agus</p>
+<p class="text-label-md text-on-surface-variant">Network Maint.</p>
+</div>
+</div>
+<div class="mt-4 flex items-center justify-between">
+<span class="px-2 py-1 bg-emerald-100 text-emerald-700 text-label-md rounded-lg">Selesai</span>
+<span class="text-xs text-on-surface-variant">14:20 PM</span>
+</div>
+<div class="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+</div>
+<!-- Tech Card 2 -->
+<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-slate-50 relative overflow-hidden">
+<div class="flex items-start gap-3">
+<div class="w-12 h-12 rounded-full overflow-hidden bg-slate-100">
+<img class="w-full h-full object-cover" data-alt="A professional male technician in his late 30s wearing a technical operations vest over a polo shirt. He is looking at a digital tablet with a focused expression. The setting is a brightly lit data center with rows of sleek servers in the background. The visual style is crisp and modern, emphasizing operational efficiency and reliability." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA4l1gz2k2oiLyD3HFXUC7bdy6CU4iDxJOR1uWcihrzYxyVDWpWHQTD08fUdUihffmKLEb1R8uKmafBi46bCvZZQjcdlOLPtSAJUoFjaHffTbqLfxm-67_AhVIskzKjI7-j1onnnhS62II17huh0TFWEIw2UTo_1e561y7CTeLdNjPmWlhSYRAFGykUR6uMPvfDuVK_glguu8iilMEKJTS7k__mT5ofyvdeeVLdzjObgicRaMXARn3FAHV5cyW2VtVHlXxrrvMRfaKF"/>
+</div>
+<div class="flex-1">
+<p class="font-semibold text-on-surface">Budi</p>
+<p class="text-label-md text-on-surface-variant">Fiber Optic</p>
+</div>
+</div>
+<div class="mt-4 flex items-center justify-between">
+<span class="px-2 py-1 bg-blue-100 text-blue-700 text-label-md rounded-lg">Aktif</span>
+<span class="text-xs text-on-surface-variant">In Progress</span>
+</div>
+<div class="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+</div>
+<!-- Tech Card 3 -->
+<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-slate-50 relative overflow-hidden">
+<div class="flex items-start gap-3">
+<div class="w-12 h-12 rounded-full overflow-hidden bg-slate-100">
+<img class="w-full h-full object-cover" data-alt="A portrait of a male field technician standing outdoors with a technical facility in the distance. He is wearing safety gear including a helmet and a high-visibility accent on his uniform. The lighting is early morning sun, creating a warm yet professional atmosphere. The image style is sharp and corporate, fitting a high-end TechOps management platform." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCGCJE5YEVnTnCEwPubWIu0nRibOjtVRrBq0qxUr7XWXZxpEom0ywqp8TGZ-XNCLlrD4nbyOsrr7oYnp-YPJO4WOL_CQvDkWx30HLX7MWkr0IRihb47CurrI6TCCxWb-dEmTot64Fgo00Gtm_g91D_TkNSrYOReAjCO2zosDEUU1UvLLgyLNbtQqWJ2VtlV03_hkkF8cjHPrdXB7_jISNCNSQvoeM3JOlDfBPajUk5lVtf7gpZq03Rio9lSU5TlJQmGPRvRts1LTRb4"/>
+</div>
+<div class="flex-1">
+<p class="font-semibold text-on-surface">Citra</p>
+<p class="text-label-md text-on-surface-variant">Server Op.</p>
+</div>
+</div>
+<div class="mt-4 flex items-center justify-between">
+<span class="px-2 py-1 bg-amber-100 text-amber-700 text-label-md rounded-lg">Pending</span>
+<span class="text-xs text-on-surface-variant">Menunggu Alat</span>
+</div>
+<div class="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+</div>
+</div>
+<!-- Performance Map Preview -->
+<div class="bg-surface-container-lowest rounded-xl card-shadow border border-slate-50 overflow-hidden h-[240px] relative group">
+<img class="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-700" data-alt="A clean, high-contrast digital map interface showing a city landscape from above with neon-blue network lines and glowing technician status pins. The aesthetic is futuristic and data-driven, using a dark-mode base with vibrant primary blue accents. The map displays operational heatmaps and real-time location tracking markers, representing a sophisticated TechOps command center." data-location="Jakarta" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBKniVUDUVOgy_vEY5s2TSdt9jmAAhrayQkyXlYvI6SzAiV5J81L8WtsEhIVb6kmh6jw_ho5INOc24rBCKBisl0O1osdGzj5KEKbaLrxfXHYL26EKBR6x_6uHOlB_1QUtYra5orUSO5uT6FkxZbxXNox3sojHugCbOQN3ZqJY-Z06quymSMCDbzW3a728MD5yJL_puADr6LXWlHDI5nK210gPh5jRKPUKoadOPFyLo_8aQcpxKTrdD_bkFTNNp2wShj1HMhs5ixCBQo"/>
+<div class="absolute top-4 left-4 bg-white/90 backdrop-blur px-4 py-2 rounded-lg border border-slate-200">
+<p class="text-label-md font-bold text-on-surface">Lokasi Teknisi Real-time</p>
+<p class="text-xs text-on-surface-variant">Terpantau 12 unit di wilayah Jakarta Selatan</p>
+</div>
+</div>
+</div>
+<!-- Side Notifications / Leader Reports -->
+<div class="space-y-gutter">
+<div class="flex items-center justify-between">
+<h2 class="font-headline-md text-on-surface text-balance">Laporan Masuk</h2>
+<span class="bg-error text-white text-[10px] px-2 py-1 rounded-full font-bold">NEW</span>
+</div>
+<div class="space-y-sm">
+<!-- Report Item 1 -->
+<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-slate-50 flex gap-4 items-start group hover:border-blue-200 transition-colors">
+<div class="w-10 h-10 rounded-lg bg-error-container flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-error" data-icon="report">report</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<p class="text-body-md font-bold text-on-surface">Down Server - Zone B</p>
+<span class="text-[10px] text-on-surface-variant">09:12</span>
+</div>
+<p class="text-label-md text-on-surface-variant mt-1 line-clamp-2">Tim Leader Andi melaporkan adanya gangguan distribusi listrik di rak server 4B...</p>
+<div class="mt-3 flex gap-2">
+<button class="px-3 py-1 bg-primary text-white text-[10px] rounded-full font-bold">Respon</button>
+<button class="px-3 py-1 bg-slate-100 text-on-surface-variant text-[10px] rounded-full font-bold">Detail</button>
+</div>
+</div>
+</div>
+<!-- Report Item 2 -->
+<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-slate-50 flex gap-4 items-start border-l-4 border-l-blue-500">
+<div class="w-10 h-10 rounded-lg bg-primary-fixed flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-primary" data-icon="pending_actions">pending_actions</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<p class="text-body-md font-bold text-on-surface">Permintaan Suku Cadang</p>
+<span class="text-[10px] text-on-surface-variant">08:45</span>
+</div>
+<p class="text-label-md text-on-surface-variant mt-1">Leader Rian meminta kabel optik tambahan untuk perbaikan di site Menteng.</p>
+</div>
+</div>
+<!-- Report Item 3 -->
+<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-slate-50 flex gap-4 items-start opacity-75">
+<div class="w-10 h-10 rounded-lg bg-surface-container-highest flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="history">history</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<p class="text-body-md font-bold text-on-surface">Update Mingguan</p>
+<span class="text-[10px] text-on-surface-variant">Kemarin</span>
+</div>
+<p class="text-label-md text-on-surface-variant mt-1">Laporan analitik minggu lalu sudah siap diekspor oleh sistem.</p>
+</div>
+</div>
+</div>
+<!-- Export CTA -->
+<div class="bg-primary p-md rounded-xl card-shadow flex flex-col items-center justify-center text-center text-white space-y-2">
+<span class="material-symbols-outlined text-[32px]" data-icon="analytics">analytics</span>
+<p class="font-bold">Butuh Rekapitulasi?</p>
+<p class="text-[12px] opacity-80">Download data performa teknisi dalam format PDF atau Excel.</p>
+<button class="mt-2 w-full py-2 bg-white text-primary rounded-full font-bold text-label-md active:scale-95 transition-transform">Export Laporan</button>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-6 py-3 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] rounded-t-2xl">
+<a class="flex flex-col items-center justify-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded-xl px-3 py-1 active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-inter text-[12px] font-medium mt-1">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 hover:text-blue-500 dark:hover:text-blue-300 active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+<span class="font-inter text-[12px] font-medium mt-1">Monitoring</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 hover:text-blue-500 dark:hover:text-blue-300 active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span class="font-inter text-[12px] font-medium mt-1">Laporan</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 hover:text-blue-500 dark:hover:text-blue-300 active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="insights">insights</span>
+<span class="font-inter text-[12px] font-medium mt-1">Analytics</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 hover:text-blue-500 dark:hover:text-blue-300 active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="file_download">file_download</span>
+<span class="font-inter text-[12px] font-medium mt-1">Export</span>
+</a>
+</nav>
+</body></html>

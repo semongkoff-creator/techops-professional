@@ -1,0 +1,15 @@
+import multer from "multer";
+
+function fileFilter(_req, file, cb) {
+  if (["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)) {
+    cb(null, true);
+    return;
+  }
+  cb(new Error("Invalid file type. Allowed: jpg, png, webp"));
+}
+
+export const uploadAvatar = multer({
+  storage: multer.memoryStorage(),
+  fileFilter,
+  limits: { fileSize: 2 * 1024 * 1024 },
+});

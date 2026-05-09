@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>TechOps Supervisor Monitoring</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=DM+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-container": "#eeefff",
+                    "on-primary-fixed": "#00174b",
+                    "surface-container": "#ededf9",
+                    "on-background": "#191b23",
+                    "on-tertiary-fixed": "#360f00",
+                    "on-tertiary": "#ffffff",
+                    "on-tertiary-container": "#ffede6",
+                    "surface-container-highest": "#e1e2ed",
+                    "surface-container-high": "#e7e7f3",
+                    "surface-tint": "#0053db",
+                    "tertiary-container": "#bc4800",
+                    "outline-variant": "#c3c6d7",
+                    "error-container": "#ffdad6",
+                    "surface-container-low": "#f3f3fe",
+                    "tertiary": "#943700",
+                    "on-surface": "#191b23",
+                    "primary-fixed": "#dbe1ff",
+                    "on-secondary-fixed": "#2a1700",
+                    "on-error-container": "#93000a",
+                    "inverse-primary": "#b4c5ff",
+                    "on-secondary-container": "#684000",
+                    "secondary": "#855300",
+                    "surface": "#faf8ff",
+                    "background": "#faf8ff",
+                    "on-primary": "#ffffff",
+                    "inverse-on-surface": "#f0f0fb",
+                    "on-secondary-fixed-variant": "#653e00",
+                    "secondary-container": "#fea619",
+                    "surface-dim": "#d9d9e5",
+                    "surface-bright": "#faf8ff",
+                    "error": "#ba1a1a",
+                    "primary-fixed-dim": "#b4c5ff",
+                    "surface-variant": "#e1e2ed",
+                    "on-error": "#ffffff",
+                    "on-secondary": "#ffffff",
+                    "on-primary-fixed-variant": "#003ea8",
+                    "secondary-fixed": "#ffddb8",
+                    "tertiary-fixed": "#ffdbcd",
+                    "on-surface-variant": "#434655",
+                    "on-tertiary-fixed-variant": "#7d2d00",
+                    "primary-container": "#2563eb",
+                    "inverse-surface": "#2e3039",
+                    "tertiary-fixed-dim": "#ffb596",
+                    "surface-container-lowest": "#ffffff",
+                    "secondary-fixed-dim": "#ffb95f",
+                    "primary": "#004ac6",
+                    "outline": "#737686"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "lg": "24px",
+                    "gutter": "16px",
+                    "sm": "8px",
+                    "md": "16px",
+                    "xs": "4px",
+                    "xl": "32px",
+                    "margin": "16px",
+                    "base": "4px"
+            },
+            "fontFamily": {
+                    "code-brand": ["DM Mono"],
+                    "display": ["Inter"],
+                    "label-md": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "body-md": ["Inter"],
+                    "headline-md": ["Inter"]
+            },
+            "fontSize": {
+                    "code-brand": ["18px", {"lineHeight": "1", "fontWeight": "500"}],
+                    "display": ["32px", {"lineHeight": "1.2", "fontWeight": "700"}],
+                    "label-md": ["12px", {"lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "600"}],
+                    "headline-lg": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                    "body-lg": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "body-md": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "headline-md": ["20px", {"lineHeight": "1.4", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .green-pulse {
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+        animation: pulse-green 2s infinite;
+      }
+      @keyframes pulse-green {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+        70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+      }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-[#F0F4FF] font-body-md text-on-surface">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-4 h-16 bg-white shadow-sm border-b border-slate-100">
+<div class="flex items-center gap-3">
+<button class="p-2 hover:bg-slate-50 transition-colors active:opacity-70">
+<span class="material-symbols-outlined text-slate-900" data-icon="menu">menu</span>
+</button>
+<span class="text-xl font-bold tracking-tight text-blue-600 font-display">TechOps</span>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 hover:bg-slate-50 transition-colors active:opacity-70">
+<span class="material-symbols-outlined text-slate-500" data-icon="notifications">notifications</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center text-on-primary-fixed font-label-md">
+                JD
+            </div>
+</div>
+</header>
+<main class="pt-20 pb-24 px-gutter max-w-5xl mx-auto">
+<!-- Search and Live Indicator -->
+<div class="flex flex-col gap-4 mb-6">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 bg-green-500 rounded-full green-pulse"></div>
+<span class="font-label-md text-slate-500 tracking-wide uppercase">Live Monitoring</span>
+</div>
+<div class="flex items-center gap-1 text-slate-400">
+<span class="material-symbols-outlined text-sm" data-icon="refresh">refresh</span>
+<span class="text-[10px] font-medium uppercase tracking-widest">Pull to refresh</span>
+</div>
+</div>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" data-icon="search">search</span>
+<input class="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-sm" placeholder="Search technicians, tasks, or IDs..." type="text"/>
+<button class="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-slate-100 rounded-lg text-slate-400">
+<span class="material-symbols-outlined" data-icon="tune">tune</span>
+</button>
+</div>
+</div>
+<!-- Dashboard Stats Grid -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+<div class="bg-white p-4 rounded-2xl shadow-[0_4px_16px_rgba(0,0,0,0.08)] border border-slate-50">
+<p class="text-slate-500 font-label-md mb-1">Total Techs</p>
+<p class="text-2xl font-bold text-slate-900 font-display">24</p>
+</div>
+<div class="bg-white p-4 rounded-2xl shadow-[0_4px_16px_rgba(0,0,0,0.08)] border border-slate-50">
+<p class="text-slate-500 font-label-md mb-1">Active</p>
+<div class="flex items-baseline gap-1">
+<p class="text-2xl font-bold text-green-600 font-display">18</p>
+<span class="text-[10px] text-green-500 font-bold">↑ 2</span>
+</div>
+</div>
+<div class="bg-white p-4 rounded-2xl shadow-[0_4px_16px_rgba(0,0,0,0.08)] border border-slate-50">
+<p class="text-slate-500 font-label-md mb-1">Idle</p>
+<p class="text-2xl font-bold text-slate-400 font-display">6</p>
+</div>
+<div class="bg-white p-4 rounded-2xl shadow-[0_4px_16px_rgba(0,0,0,0.08)] border border-slate-50">
+<p class="text-slate-500 font-label-md mb-1">Incidents</p>
+<p class="text-2xl font-bold text-error font-display">0</p>
+</div>
+</div>
+<!-- Technician List -->
+<div class="space-y-4">
+<h2 class="font-headline-md text-slate-900 flex items-center gap-2">
+                Technicians
+                <span class="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-xs font-bold">24</span>
+</h2>
+<!-- Card 1: Agus (Active) -->
+<div class="bg-white rounded-2xl shadow-[0_4px_16px_rgba(0,0,0,0.08)] overflow-hidden border border-slate-50 hover:border-primary/30 transition-colors group">
+<div class="p-gutter flex flex-col sm:flex-row sm:items-center gap-gutter">
+<div class="flex items-center gap-4 flex-1">
+<div class="relative">
+<img alt="Lead Engineer Agus" class="w-14 h-14 rounded-full object-cover border-2 border-green-100" data-alt="A professional headshot of a smiling technician named Agus, who is wearing a clean blue corporate uniform. He has a friendly but authoritative demeanor, set against a blurred modern industrial background with soft, high-key lighting. The overall aesthetic is professional, clean, and modern light-mode, matching a high-end TechOps management dashboard with soft blue-gray tones." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBq-vSpZjg4l4O2-IXTXZINOP215zt5zrdGdg_-rHdt-yq-m3kWlWFRMCQlsXGDsv8Dgy6jtRMfdM7qnVuvfYXHTju7xpLplOzYBeQxgFifgRiUFq3vqloaVda2hFIDyA-T-Op51eVMipMxsUXFnavUxwIKVqcYEIUMZ4jDpunB5ksFWWs5Qeqep0BZNwbOHtAJ8_41FSjqOl4Qq_ZDZrc3HJqIaYOK8QtGwIe61hXls_raXKYllhddHlX8ZgYBLaaPQwxVnb3MTqqc"/>
+<div class="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
+</div>
+<div>
+<div class="flex items-center gap-2 mb-0.5">
+<h3 class="font-headline-sm font-bold text-slate-900">Agus</h3>
+<span class="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wide uppercase">Aktif</span>
+</div>
+<p class="text-slate-500 font-label-md">Lead Eng.</p>
+</div>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-center mb-2">
+<span class="text-slate-500 text-xs font-medium">Task: <span class="text-slate-900 font-semibold">Fiber Optic Install</span></span>
+<span class="text-primary font-bold text-xs">75%</span>
+</div>
+<div class="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full transition-all duration-1000" style="width: 75%"></div>
+</div>
+</div>
+<div class="flex items-center gap-2 sm:pl-4 sm:border-l border-slate-100">
+<button class="flex items-center justify-center w-10 h-10 rounded-full bg-slate-50 text-slate-600 hover:bg-primary hover:text-white transition-all">
+<span class="material-symbols-outlined" data-icon="location_on">location_on</span>
+</button>
+<button class="flex items-center justify-center w-10 h-10 rounded-full bg-slate-50 text-slate-600 hover:bg-primary hover:text-white transition-all">
+<span class="material-symbols-outlined" data-icon="chat_bubble">chat_bubble</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Card 2: Budi (Idle) -->
+<div class="bg-white rounded-2xl shadow-[0_4px_16px_rgba(0,0,0,0.08)] overflow-hidden border border-slate-50 hover:border-slate-200 transition-colors">
+<div class="p-gutter flex flex-col sm:flex-row sm:items-center gap-gutter">
+<div class="flex items-center gap-4 flex-1">
+<div class="relative">
+<img alt="Technician Budi" class="w-14 h-14 rounded-full object-cover grayscale opacity-80" data-alt="A portrait of a male technician named Budi looking professional and relaxed, wearing a navy work shirt. The image has a clean, desaturated color profile to indicate an idle or inactive state, consistent with a modern corporate UI. The background is a minimalist tech office interior with soft natural lighting and a high-key light mode aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBerX7Xl0593Xllte7PNDZlNDO9qKbGTqVyn4oF343nygfaA0dtAoIDO0AbvSA2pi-yj4QC2lSGQ419AhgCs6Z17uKVVFmqdjRpzXkAftq2lgR3d1IgzrpBbx2xW7RetzaaxY1JX-UxPWhRMGDvxuKXMvtxP_NFgj4yMskFQ4xg3UOKQmz1yjxjJKW8p2MeohfisZNnjFBkQv2rl5KSChli7VT9V0v5AOPSsvY7Z2He07-Oq-GQ-LkPoR6Qo5VMqyWbR-S1VV25ERD-"/>
+<div class="absolute bottom-0 right-0 w-4 h-4 bg-slate-300 border-2 border-white rounded-full"></div>
+</div>
+<div>
+<div class="flex items-center gap-2 mb-0.5">
+<h3 class="font-headline-sm font-bold text-slate-900">Budi</h3>
+<span class="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wide uppercase">Idle</span>
+</div>
+<p class="text-slate-500 font-label-md">Technician</p>
+</div>
+</div>
+<div class="flex-1 flex items-center justify-start sm:justify-center">
+<div class="flex flex-col gap-1">
+<span class="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Last Update</span>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-slate-400 text-sm" data-icon="history">history</span>
+<span class="text-slate-600 font-semibold text-sm">10 mins ago</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-2 sm:pl-4 sm:border-l border-slate-100">
+<button class="flex items-center justify-center w-10 h-10 rounded-full bg-slate-50 text-slate-600 hover:bg-primary hover:text-white transition-all">
+<span class="material-symbols-outlined" data-icon="assignment">assignment</span>
+</button>
+<button class="px-4 py-2 bg-primary-container text-on-primary-container rounded-full text-xs font-bold hover:brightness-110 active:scale-95 transition-all">
+                            Assign Task
+                        </button>
+</div>
+</div>
+</div>
+<!-- Additional Placeholder for List Density -->
+<div class="bg-white/60 rounded-2xl border border-dashed border-slate-300 p-8 flex flex-col items-center justify-center text-slate-400">
+<span class="material-symbols-outlined text-4xl mb-2 opacity-20" data-icon="groups">groups</span>
+<p class="text-sm font-medium">Scroll for more technicians</p>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-6 py-3 bg-white shadow-[0_-4px_16px_rgba(0,0,0,0.08)] rounded-t-2xl border-t border-slate-100">
+<a class="flex flex-col items-center justify-center text-slate-400 px-3 py-1 hover:text-blue-500 active:scale-95 transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-inter text-[12px] font-medium mt-1">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-blue-600 bg-blue-50 rounded-xl px-3 py-1 active:scale-95 transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-inter text-[12px] font-bold mt-1">Monitoring</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 px-3 py-1 hover:text-blue-500 active:scale-95 transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span class="font-inter text-[12px] font-medium mt-1">Laporan</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 px-3 py-1 hover:text-blue-500 active:scale-95 transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-inter text-[12px] font-medium mt-1">Analytics</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 px-3 py-1 hover:text-blue-500 active:scale-95 transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="ios_share">ios_share</span>
+<span class="font-inter text-[12px] font-medium mt-1">Export</span>
+</a>
+</nav>
+<!-- Map View FAB (Contextual for Monitoring) -->
+<button class="fixed bottom-24 right-6 w-14 h-14 bg-primary text-white rounded-full shadow-lg flex items-center justify-center active:scale-90 transition-transform z-40">
+<span class="material-symbols-outlined" data-icon="map" style="font-variation-settings: 'FILL' 1;">map</span>
+</button>
+</body></html>

@@ -1,0 +1,181 @@
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+
+export const ASSET_BASE = API_BASE.replace(/\/api\/?$/, "");
+
+type Method = "GET" | "POST" | "PATCH" | "DELETE";
+
+function getToken() {
+  return localStorage.getItem("token");
+}
+
+function setToken(token: string) {
+  localStorage.setItem("token", token);
+}
+
+function clearToken() {
+  localStorage.removeItem("token");
+}
+
+function authHeader() {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+let refreshPromise: Promise<string> | null = null;
+
+async function refreshAccessToken(): Promise<string> {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) throw new Error("refresh_failed");
+      const data = await res.json() as { token?: string };
+      if (!data.token) throw new Error("refresh_failed");
+      setToken(data.token);
+      return data.token;
+    })().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
+function expireSessionAndThrow(): never {
+  clearToken();
+  window.dispatchEvent(new CustomEvent("auth:expired"));
+  throw new Error("Sesi login berakhir. Silakan login ulang.");
+}
+
+async function doFetch(path: string, method: Method, body?: unknown, isUpload = false): Promise<Response> {
+  const headers: Record<string, string> = {
+    ...(isUpload ? {} : { "Content-Type": "application/json" }),
+    ...authHeader(),
+  };
+  return fetch(`${API_BASE}${path}`, {
+    method,
+    credentials: "include",
+    headers,
+    body: isUpload ? (body as FormData | undefined) : (body ? JSON.stringify(body) : undefined),
+  });
+}
+
+export async function request<T>(path: string, method: Method = "GET", body?: unknown): Promise<T> {
+  let res: Response;
+  try {
+    res = await doFetch(path, method, body);
+  } catch {
+    throw new Error("Gagal terhubung ke server. Pastikan backend jalan di port 5000.");
+  }
+
+  if (res.status === 401 && path !== "/auth/login" && path !== "/auth/refresh") {
+    try {
+      await refreshAccessToken();
+      res = await doFetch(path, method, body);
+    } catch {
+      return expireSessionAndThrow();
+    }
+  }
+
+  if (!res.ok) {
+    const errorBody = await res.json().catch(() => ({}));
+    if (res.status === 401) return expireSessionAndThrow();
+    throw new Error((errorBody as { message?: string }).message || "Request failed");
+  }
+  return res.json();
+}
+
+async function upload(path: string, file: File): Promise<any> {
+  const fd = new FormData();
+  fd.append("avatar", file);
+
+  let res: Response;
+  try {
+    res = await doFetch(path, "PATCH", fd, true);
+  } catch {
+    throw new Error("Gagal terhubung ke server. Pastikan backend jalan di port 5000.");
+  }
+
+  if (res.status === 401) {
+    try {
+      await refreshAccessToken();
+      res = await doFetch(path, "PATCH", fd, true);
+    } catch {
+      return expireSessionAndThrow();
+    }
+  }
+
+  if (!res.ok) {
+    const errorBody = await res.json().catch(() => ({}));
+    throw new Error((errorBody as { message?: string }).message || "Upload failed");
+  }
+  return res.json();
+}
+
+export const api = {
+  login: (payload: { username: string; password: string }) => request<{ token: string; user: unknown }>("/auth/login", "POST", payload),
+  me: () => request("/auth/me"),
+  refresh: () => request<{ token: string }>("/auth/refresh", "POST"),
+  logout: () => request<{ message: string }>("/auth/logout", "POST"),
+  users: (role?: string) => request(`/users${role ? `?role=${role}` : ""}`),
+  updateProfile: (payload: { name: string; avatar_url?: string }) => request("/users/me", "PATCH", payload),
+  changePassword: (payload: { current_password: string; new_password: string }) => request("/users/me/password", "PATCH", payload),
+  uploadAvatar: (file: File) => upload("/users/me/avatar", file),
+  tasks: () => request("/tasks"),
+  createTask: (payload: unknown) => request("/tasks", "POST", payload),
+  updateTask: (taskId: number, payload: unknown) => request(`/tasks/${taskId}`, "PATCH", payload),
+  deleteTask: (taskId: number) => request(`/tasks/${taskId}`, "DELETE"),
+  assignTechnician: (taskId: number, payload: unknown) => request(`/tasks/${taskId}/assign-technician`, "PATCH", payload),
+  updateTaskStatus: (taskId: number, payload: unknown) => request(`/tasks/${taskId}/status`, "PATCH", payload),
+  updateTaskProgress: (taskId: number, payload: unknown) => request(`/tasks/${taskId}/progress`, "PATCH", payload),
+  reports: () => request("/reports"),
+  createReport: (payload: unknown) => request("/reports", "POST", payload),
+  reviewReport: (id: number) => request(`/reports/${id}/review`, "PATCH"),
+  forwardReport: (id: number) => request(`/reports/${id}/forward`, "PATCH"),
+  approveReport: (id: number) => request(`/reports/${id}/approve`, "PATCH"),
+  revisionReport: (id: number) => request(`/reports/${id}/revision`, "PATCH"),
+  notifications: () => request("/notifications"),
+  readAllNotifications: () => request("/notifications/read-all", "PATCH"),
+  readNotification: (id: number) => request(`/notifications/${id}/read`, "PATCH"),
+  dashboardSummary: () => request("/dashboard/summary"),
+  dashboardCharts: () => request("/dashboard/charts"),
+  exportData: async (query: string, format: "pdf" | "xls" | "xlsx") => {
+    let res = await fetch(`${API_BASE}/dashboard/export${query}`, {
+      method: "GET",
+      credentials: "include",
+      headers: { ...authHeader() },
+    });
+
+    if (res.status === 401) {
+      try {
+        await refreshAccessToken();
+        res = await fetch(`${API_BASE}/dashboard/export${query}`, {
+          method: "GET",
+          credentials: "include",
+          headers: { ...authHeader() },
+        });
+      } catch {
+        return expireSessionAndThrow();
+      }
+    }
+
+    if (!res.ok) {
+      const errorBody = await res.json().catch(() => ({}));
+      throw new Error((errorBody as { message?: string }).message || "Export failed");
+    }
+
+    const blob = await res.blob();
+    const ext = format === "pdf" ? "pdf" : "xlsx";
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `techops-export.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    return { message: "File downloaded" };
+  },
+};
