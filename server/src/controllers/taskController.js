@@ -6,16 +6,28 @@ import { generateTaskCode } from "../utils/taskCode.js";
 const taskStatuses = ["draft_to_supervisor", "assigned_to_technician", "in_progress", "completed", "closed"];
 
 export async function createTask(req, res) {
-  const { title, description, location, priority, supervisor_id, technician_id, due_date, completion_percent } = req.body;
-  const selectedSupervisorId = req.user.role === "supervisor" ? req.user.id : Number(supervisor_id);
-  const selectedTechnicianId = req.user.role === "supervisor" && technician_id ? Number(technician_id) : null;
+  const { title, description, customer, location, priority, supervisor_id, staff_id, technician_id, due_date, completion_percent } = req.body;
+  const isSupervisor = req.user.role === "supervisor";
+  const isStaff = req.user.role === "staff" || req.user.role === "atasan";
+  const isTechnician = req.user.role === "teknisi" || req.user.role === "technician";
+  const selectedSupervisorId = isSupervisor ? req.user.id : Number(supervisor_id);
+  const selectedStaffId = isSupervisor
+    ? (staff_id ? Number(staff_id) : req.user.id)
+    : isStaff
+      ? (staff_id ? Number(staff_id) : req.user.id)
+      : Number(staff_id);
+  const selectedTechnicianId = isTechnician ? req.user.id : (technician_id ? Number(technician_id) : null);
   const pct = Number.isFinite(Number(completion_percent)) ? Number(completion_percent) : 0;
   const initialStatus = selectedTechnicianId ? "assigned_to_technician" : "draft_to_supervisor";
 
   if (!selectedSupervisorId) return res.status(400).json({ message: "Supervisor wajib diisi." });
+  if (isTechnician && !selectedStaffId) return res.status(400).json({ message: "Staff wajib diisi." });
 
   const [spvRows] = await pool.execute("SELECT id FROM users WHERE id=? AND role='supervisor' LIMIT 1", [selectedSupervisorId]);
   if (!spvRows[0]) return res.status(400).json({ message: "Supervisor tidak valid" });
+
+  const [staffRows] = await pool.execute("SELECT id FROM users WHERE id=? AND role IN ('staff','atasan') LIMIT 1", [selectedStaffId]);
+  if (!staffRows[0]) return res.status(400).json({ message: "Staff tidak valid" });
 
   if (selectedTechnicianId) {
     const [techRows] = await pool.execute("SELECT id FROM users WHERE id=? AND role='teknisi' LIMIT 1", [selectedTechnicianId]);
@@ -25,9 +37,9 @@ export async function createTask(req, res) {
   const [[seqRow]] = await pool.query("SELECT COALESCE(MAX(id),0)+1 AS seq FROM tasks");
   const code = generateTaskCode(seqRow.seq);
   const [result] = await pool.execute(
-    `INSERT INTO tasks (code,title,description,location,priority,status,created_by_atasan_id,supervisor_id,technician_id,due_date,completion_percent,created_at,updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())`,
-    [code, title, description, location, priority, initialStatus, req.user.id, selectedSupervisorId, selectedTechnicianId, due_date || null, pct],
+    `INSERT INTO tasks (code,title,description,customer,location,priority,status,created_by_atasan_id,supervisor_id,technician_id,due_date,completion_percent,created_at,updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())`,
+    [code, title, description, customer || null, location, priority, initialStatus, selectedStaffId, selectedSupervisorId, selectedTechnicianId, due_date || null, pct],
   );
 
   await createAuditLog({
@@ -49,7 +61,7 @@ export async function createTask(req, res) {
 export async function listTasks(req, res) {
   let sql = "SELECT * FROM tasks WHERE 1=1";
   const params = [];
-  if (req.user.role === "atasan") {
+  if (req.user.role === "staff" || req.user.role === "atasan") {
     sql += " AND created_by_atasan_id=?";
     params.push(req.user.id);
   }
@@ -77,7 +89,9 @@ export async function assignTechnician(req, res) {
   const [rows] = await pool.execute("SELECT * FROM tasks WHERE id=? LIMIT 1", [req.params.id]);
   const task = rows[0];
   if (!task) return res.status(404).json({ message: "Task not found" });
-  if (Number(task.supervisor_id) !== Number(req.user.id)) return res.status(403).json({ message: "Forbidden" });
+  const canAssignAsSupervisor = Number(task.supervisor_id) === Number(req.user.id);
+  const canAssignAsStaff = Number(task.created_by_atasan_id) === Number(req.user.id);
+  if (!canAssignAsSupervisor && !canAssignAsStaff) return res.status(403).json({ message: "Forbidden" });
 
   const oldStatus = task.status;
   const newStatus = "assigned_to_technician";
@@ -141,6 +155,7 @@ export async function updateTask(req, res) {
   const {
     title = task.title,
     description = task.description,
+    customer = task.customer,
     location = task.location,
     priority = task.priority,
     supervisor_id = task.supervisor_id,
@@ -154,8 +169,8 @@ export async function updateTask(req, res) {
     task.status === "assigned_to_technician" ? "assigned_to_technician" : "draft_to_supervisor";
 
   await pool.execute(
-    "UPDATE tasks SET title=?, description=?, location=?, priority=?, supervisor_id=?, due_date=?, completion_percent=?, status=?, updated_at=NOW() WHERE id=?",
-    [title, description, location, priority, supervisor_id, due_date || null, pct, nextStatus, req.params.id],
+    "UPDATE tasks SET title=?, description=?, customer=?, location=?, priority=?, supervisor_id=?, technician_id=?, due_date=?, completion_percent=?, status=?, updated_at=NOW() WHERE id=?",
+    [title, description, customer || null, location, priority, supervisor_id, req.body.technician_id ?? task.technician_id, due_date || null, pct, nextStatus, req.params.id],
   );
   await createAuditLog({
     actorUserId: req.user.id,
@@ -163,7 +178,7 @@ export async function updateTask(req, res) {
     entityType: "task",
     entityId: Number(req.params.id),
     oldValue: task,
-    newValue: { title, description, location, priority, supervisor_id, due_date, completion_percent: pct, status: nextStatus },
+    newValue: { title, description, customer, location, priority, supervisor_id, due_date, completion_percent: pct, status: nextStatus },
   });
   return res.json({ message: "Task updated" });
 }

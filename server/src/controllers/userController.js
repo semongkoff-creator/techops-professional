@@ -32,6 +32,10 @@ async function uploadToSupabaseStorage({ file, userId }) {
 
   if (!res.ok) {
     const payload = await res.text().catch(() => "");
+    const isMissingBucket = res.status === 404 && /bucket not found/i.test(payload || "");
+    if (isMissingBucket) {
+      return null;
+    }
     throw new Error(`Gagal upload avatar ke storage: ${payload || res.statusText}`);
   }
 
@@ -58,6 +62,9 @@ export async function listUsers(req, res) {
     if (role === "teknisi" || role === "technician") {
       sql += " AND role IN (?,?)";
       params.push("teknisi", "technician");
+    } else if (role === "staff") {
+      sql += " AND role IN (?,?)";
+      params.push("staff", "atasan");
     } else {
       sql += " AND role=?";
       params.push(role);
@@ -86,8 +93,15 @@ export async function updateMyProfile(req, res) {
 export async function uploadMyAvatar(req, res) {
   if (!req.file) return res.status(400).json({ message: "Avatar file is required" });
 
-  const avatarPath = await uploadToSupabaseStorage({ file: req.file, userId: req.user.id })
-    || saveAvatarToLocal({ file: req.file, userId: req.user.id });
+  let avatarPath = null;
+  try {
+    avatarPath = await uploadToSupabaseStorage({ file: req.file, userId: req.user.id });
+  } catch (err) {
+    return res.status(500).json({ message: err.message || "Gagal upload avatar" });
+  }
+  if (!avatarPath) {
+    avatarPath = saveAvatarToLocal({ file: req.file, userId: req.user.id });
+  }
   await pool.execute("UPDATE users SET avatar_url=?, updated_at=NOW() WHERE id=?", [avatarPath, req.user.id]);
 
   return res.json({ message: "Avatar uploaded", avatar_url: avatarPath });

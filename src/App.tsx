@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "./hooks/useAuth";
 import { api } from "./services/api";
 import type { Notification, Report, Task, User } from "./types";
@@ -20,11 +20,14 @@ export default function App() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [supervisors, setSupervisors] = useState<User[]>([]);
   const [technicians, setTechnicians] = useState<User[]>([]);
-  const [atasans, setAtasans] = useState<User[]>([]);
+  const [staffs, setStaffs] = useState<User[]>([]);
   const [summary, setSummary] = useState<{ taskStats: Array<{ status: string; total: number }>; reportStats: Array<{ report_status: string; total: number }> } | null>(null);
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem("techops-theme") as Theme) || "light");
+  const [isWideScreen, setIsWideScreen] = useState<boolean>(() => (typeof window !== "undefined" ? window.innerWidth >= 1024 : true));
   const [markingAllNotifications, setMarkingAllNotifications] = useState(false);
   const [onlineTechIds, setOnlineTechIds] = useState<number[]>([]);
+  const seenNotificationIdsRef = useRef<Set<number>>(new Set());
+  const initializedNotificationsRef = useRef(false);
 
   const PRESENCE_KEY = "techops-presence-v1";
   const PRESENCE_TTL_MS = 45_000;
@@ -57,14 +60,14 @@ export default function App() {
 
   async function reload() {
     if (!user) return;
-    const [t, r, n, ds, spv, tek, atasanUsers, allUsers] = await Promise.allSettled([
+    const [t, r, n, ds, spv, tek, staffUsers, allUsers] = await Promise.allSettled([
       api.tasks(),
       api.reports(),
       api.notifications(),
       api.dashboardSummary(),
       api.users("supervisor"),
       api.users("teknisi"),
-      api.users("atasan"),
+      api.users("staff"),
       api.users(),
     ]);
 
@@ -80,13 +83,13 @@ export default function App() {
     const techniciansData = tek.status === "fulfilled"
       ? (tek.value as User[])
       : usersFallback.filter((u) => u.role === "teknisi" || u.role === "technician");
-    const atasansData = atasanUsers.status === "fulfilled"
-      ? (atasanUsers.value as User[])
-      : usersFallback.filter((u) => u.role === "atasan");
+    const staffsData = staffUsers.status === "fulfilled"
+      ? (staffUsers.value as User[])
+      : usersFallback.filter((u) => u.role === "staff" || u.role === "atasan");
 
     setSupervisors(supervisorsData);
     setTechnicians(techniciansData);
-    setAtasans(atasansData);
+    setStaffs(staffsData);
   }
 
   useEffect(() => {
@@ -97,6 +100,13 @@ export default function App() {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("techops-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    const onResize = () => setIsWideScreen(window.innerWidth >= 1024);
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     recomputeOnlineTechIds();
@@ -133,10 +143,38 @@ export default function App() {
     };
   }, [user]);
 
+  useEffect(() => {
+    if (!user) return;
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission === "default") {
+      Notification.requestPermission().catch(() => undefined);
+    }
+  }, [user]);
+
   const isRead = (n: Notification) => {
     const raw = (n as Notification & { is_read: unknown }).is_read;
     return raw === true || raw === 1 || raw === "1" || raw === "true" || raw === "t";
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    const newUnread = notifications.filter((n) => !isRead(n) && !seenNotificationIdsRef.current.has(n.id));
+    if (!initializedNotificationsRef.current) {
+      notifications.forEach((n) => seenNotificationIdsRef.current.add(n.id));
+      initializedNotificationsRef.current = true;
+      return;
+    }
+    if (Notification.permission === "granted") {
+      newUnread.forEach((n) => {
+        try {
+          new Notification(n.title || "Notifikasi Baru", { body: n.message || "" });
+        } catch {
+          // ignore browser notification failure
+        }
+      });
+    }
+    newUnread.forEach((n) => seenNotificationIdsRef.current.add(n.id));
+  }, [notifications]);
   const unread = useMemo(() => notifications.filter((n) => !isRead(n)).length, [notifications]);
   async function markAllNotificationsRead() {
     if (markingAllNotifications) return;
@@ -169,12 +207,11 @@ export default function App() {
 
   if (loading) return <div className="center">Loading...</div>;
   if (!user) return <LoginPage onLogin={login} />;
-  const rolePrefersDesktop = user.role === "supervisor" || user.role === "atasan";
-  const isDesktop = rolePrefersDesktop ? true : false;
+  const isDesktop = isWideScreen;
 
   const content = (() => {
     if (page === "dashboard") return <DashboardPage isDesktop={isDesktop} user={user} summary={summary} tasks={tasks} reports={reports} technicians={technicians} onlineTechIds={onlineTechIds} onJump={setPage} />;
-    if (page === "tasks") return <TasksPage isDesktop={isDesktop} user={user} tasks={tasks} supervisors={supervisors} technicians={technicians} atasans={atasans} onDone={reload} />;
+    if (page === "tasks") return <TasksPage isDesktop={isDesktop} user={user} tasks={tasks} supervisors={supervisors} technicians={technicians} staffs={staffs} onDone={reload} />;
     if (page === "reports") return <ReportsPage isDesktop={isDesktop} user={user} reports={reports} tasks={tasks} supervisors={supervisors} onDone={reload} />;
     if (page === "analytics") return <AnalyticsPage tasks={tasks} />;
     if (page === "export") return <ExportPage technicians={technicians} />;

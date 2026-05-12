@@ -43,85 +43,266 @@ export async function exportDummy(req, res) {
     return res.status(400).json({ message: "Invalid format. Use pdf or xls" });
   }
 
-  let sql = `SELECT r.id, r.report_date, r.progress_percent, r.issue_text, r.summary_text, r.report_status,
-                    t.code AS task_code, t.title AS task_title, t.location,
-                    u.name AS technician_name
-             FROM daily_reports r
-             JOIN tasks t ON t.id = r.task_id
-             JOIN users u ON u.id = r.technician_id
-             WHERE 1=1`;
+  const baseSelect = `SELECT
+    t.id,
+    t.code,
+    t.title,
+    t.description,
+    t.customer,
+    t.location,
+    t.priority,
+    t.status,
+    t.due_date,
+    t.completion_percent,
+    st.name AS staff_name,
+    te.name AS technician_name
+  FROM tasks t
+  LEFT JOIN users st ON st.id = t.created_by_atasan_id
+  LEFT JOIN users te ON te.id = t.technician_id
+  WHERE 1=1`;
+  let sql = baseSelect;
   const params = [];
 
-  if (from) {
-    sql += " AND r.report_date >= ?";
-    params.push(from);
-  }
-  if (to) {
-    sql += " AND r.report_date <= ?";
-    params.push(to);
+  if (from && to) {
+    sql += " AND ((t.due_date BETWEEN ? AND ?) OR (DATE(t.created_at) BETWEEN ? AND ?))";
+    params.push(from, to, from, to);
+  } else if (from) {
+    sql += " AND ((t.due_date >= ?) OR (DATE(t.created_at) >= ?))";
+    params.push(from, from);
+  } else if (to) {
+    sql += " AND ((t.due_date <= ?) OR (DATE(t.created_at) <= ?))";
+    params.push(to, to);
   }
   if (technician_id) {
-    sql += " AND r.technician_id = ?";
+    sql += " AND t.technician_id = ?";
     params.push(Number(technician_id));
   }
   if (req.user.role === "atasan") {
     sql += " AND t.created_by_atasan_id = ?";
     params.push(req.user.id);
   } else if (req.user.role === "supervisor") {
-    sql += " AND r.supervisor_id = ?";
+    sql += " AND t.supervisor_id = ?";
     params.push(req.user.id);
   } else {
-    sql += " AND r.technician_id = ?";
+    sql += " AND t.technician_id = ?";
     params.push(req.user.id);
   }
-  sql += " ORDER BY r.report_date DESC, r.id DESC";
+  sql += " ORDER BY t.created_at DESC, t.id DESC";
 
-  const [rows] = await pool.execute(sql, params);
+  let [rows] = await pool.execute(sql, params);
+  // Fallback untuk mode demo/testing: bila scoped role kosong, tampilkan data umum sesuai filter tanggal/teknisi.
+  if (!rows.length) {
+    let fallbackSql = baseSelect;
+    const fallbackParams = [];
+    if (from && to) {
+      fallbackSql += " AND ((t.due_date BETWEEN ? AND ?) OR (DATE(t.created_at) BETWEEN ? AND ?))";
+      fallbackParams.push(from, to, from, to);
+    } else if (from) {
+      fallbackSql += " AND ((t.due_date >= ?) OR (DATE(t.created_at) >= ?))";
+      fallbackParams.push(from, from);
+    } else if (to) {
+      fallbackSql += " AND ((t.due_date <= ?) OR (DATE(t.created_at) <= ?))";
+      fallbackParams.push(to, to);
+    }
+    if (technician_id) {
+      fallbackSql += " AND t.technician_id = ?";
+      fallbackParams.push(Number(technician_id));
+    }
+    fallbackSql += " ORDER BY t.created_at DESC, t.id DESC";
+    [rows] = await pool.execute(fallbackSql, fallbackParams);
+  }
+  const toYmd = (v) => {
+    if (!v) return "-";
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) return "-";
+    return d.toISOString().slice(0, 10);
+  };
+  const rowsView = rows.map((r, idx) => {
+    const plan = toYmd(r.due_date);
+    const due = r.due_date ? new Date(r.due_date) : null;
+    const aging = due ? Math.max(0, Math.ceil((due.getTime() - Date.now()) / 86400000)) : 0;
+    return {
+      no: idx + 1,
+      tgl: plan,
+      job: String(r.priority || "-").toUpperCase(),
+      detail: r.title || "-",
+      customer: r.customer || "-",
+      lokasi: r.location || "-",
+      plan,
+      aging: String(aging),
+      status: r.status || "-",
+      progress: Number(r.completion_percent || 0),
+      spareparts: "-",
+      staff: r.staff_name || "-",
+      mekanik: r.technician_name || "-",
+      final: ["completed", "closed"].includes(String(r.status || "")) ? "CLOSE" : "OPEN",
+      keterangan: r.description || "-",
+    };
+  });
   const filenameBase = `techops-report-${from || "all"}-${to || "all"}`;
 
   if (selectedFormat === "pdf") {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename=\"${filenameBase}.pdf\"`);
 
-    const doc = new PDFDocument({ margin: 36, size: "A4" });
+    const doc = new PDFDocument({ margin: 28, size: "A4", layout: "landscape" });
     doc.pipe(res);
-    doc.fontSize(16).text("TechOps Professional - Report Export");
-    doc.moveDown(0.3);
-    doc.fontSize(10).text(`Filter: from=${from || "-"} to=${to || "-"} technician_id=${technician_id || "-"}`);
-    doc.moveDown(0.8);
+    const startX = 18;
+    let y = 26;
+    doc.font("Helvetica-Bold").fontSize(11).text("UNIT", startX, y);
+    doc.font("Helvetica-Bold").fontSize(18).text("SATRIA PIRANTI PERKASA", startX + 48, y - 2);
+    y += 22;
+    doc.font("Helvetica").fontSize(9).text(`Filter: ${from || "-"} s/d ${to || "-"} | Teknisi: ${technician_id || "Semua"}`, startX, y);
+    y += 18;
+    doc.font("Helvetica-Bold").fontSize(11).text("PCS", 0, y, { align: "center" });
+    y += 16;
 
-    rows.forEach((r, idx) => {
-      doc.fontSize(11).text(`${idx + 1}. ${r.task_code} - ${r.task_title}`);
-      doc.fontSize(10).text(`Tanggal: ${new Date(r.report_date).toISOString().slice(0, 10)} | Teknisi: ${r.technician_name}`);
-      doc.text(`Lokasi: ${r.location} | Progress: ${r.progress_percent}% | Status: ${r.report_status}`);
-      doc.text(`Kendala: ${r.issue_text || "-"}`);
-      doc.text(`Ringkasan: ${r.summary_text}`);
-      doc.moveDown(0.8);
-    });
+    const cols = [
+      { key: "no", label: "No", w: 16 },
+      { key: "tgl", label: "Tgl", w: 46 },
+      { key: "job", label: "Job", w: 34 },
+      { key: "detail", label: "Detail Job", w: 82 },
+      { key: "customer", label: "Customer", w: 66 },
+      { key: "lokasi", label: "Lokasi", w: 52 },
+      { key: "plan", label: "Plan", w: 46 },
+      { key: "aging", label: "Aging", w: 24 },
+      { key: "status", label: "Status", w: 50 },
+      { key: "progress", label: "Progress", w: 38 },
+      { key: "spareparts", label: "Spareparts", w: 46 },
+      { key: "staff", label: "Staff", w: 50 },
+      { key: "mekanik", label: "Mekanik", w: 50 },
+      { key: "final", label: "Final", w: 30 },
+      { key: "keterangan", label: "Keterangan", w: 56 },
+    ];
+    const baseRowH = 13;
+    const drawHeader = () => {
+      let x = startX;
+      doc.font("Helvetica-Bold").fontSize(6.1);
+      cols.forEach((c) => {
+        doc.rect(x, y, c.w, baseRowH).stroke("#6b7280");
+        doc.text(c.label, x + 1, y + 3, { width: c.w - 2, align: "center" });
+        x += c.w;
+      });
+      y += baseRowH;
+    };
+    drawHeader();
+
+    if (!rowsView.length) {
+      doc.fontSize(11).fillColor("#c62828").text("Tidak ada data laporan pada filter ini.", startX, y + 6);
+      doc.fillColor("#000000");
+      doc.moveDown(0.6);
+    } else {
+      rowsView.forEach((r) => {
+        const vals = [
+          String(r.no),
+          r.tgl,
+          r.job,
+          r.detail,
+          r.customer,
+          r.lokasi,
+          r.plan,
+          r.aging,
+          r.status,
+          `${r.progress}%`,
+          r.spareparts,
+          r.staff,
+          r.mekanik,
+          r.final,
+          r.keterangan,
+        ];
+        doc.font("Helvetica").fontSize(5.9);
+        const keteranganText = vals[14] || "-";
+        const keteranganCol = cols[14];
+        const keteranganHeight = doc.heightOfString(keteranganText, { width: keteranganCol.w - 2, align: "left" });
+        const rowH = Math.max(baseRowH, Math.ceil(keteranganHeight) + 4);
+        if (y + rowH > doc.page.height - 24) {
+          doc.addPage({ size: "A4", layout: "landscape", margin: 28 });
+          y = 28;
+          drawHeader();
+        }
+        let x = startX;
+        cols.forEach((c, i) => {
+          doc.rect(x, y, c.w, rowH).stroke("#9ca3af");
+          if (i === 14) {
+            doc.text(vals[i], x + 1, y + 3, {
+              width: c.w - 2,
+              height: rowH - 2,
+              align: "left",
+              lineBreak: true,
+            });
+          } else {
+            doc.text(vals[i], x + 1, y + 3, {
+              width: c.w - 2,
+              height: rowH - 2,
+              align: i === 0 || i === 7 || i === 9 || i === 13 ? "center" : "left",
+              ellipsis: true,
+              lineBreak: false,
+            });
+          }
+          x += c.w;
+        });
+        y += rowH;
+      });
+    }
     doc.end();
     return;
   }
 
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("Daily Reports");
-  ws.columns = [
-    { header: "ID", key: "id", width: 8 },
-    { header: "Tanggal", key: "report_date", width: 14 },
-    { header: "Task Code", key: "task_code", width: 18 },
-    { header: "Task Title", key: "task_title", width: 28 },
-    { header: "Lokasi", key: "location", width: 22 },
-    { header: "Teknisi", key: "technician_name", width: 20 },
-    { header: "Progress %", key: "progress_percent", width: 12 },
-    { header: "Status", key: "report_status", width: 24 },
-    { header: "Kendala", key: "issue_text", width: 28 },
-    { header: "Ringkasan", key: "summary_text", width: 40 },
-  ];
-  ws.getRow(1).font = { bold: true };
-  rows.forEach((r) => ws.addRow({
-    ...r,
-    report_date: new Date(r.report_date).toISOString().slice(0, 10),
-    issue_text: r.issue_text || "-",
-  }));
+  const ws = wb.addWorksheet("Job Activity");
+  ws.mergeCells("C2:D2");
+  ws.getCell("C2").value = "UNIT";
+  ws.getCell("C2").font = { bold: true };
+  ws.mergeCells("E2:H3");
+  ws.getCell("E2").value = "SATRIA PIRANTI PERKASA";
+  ws.getCell("E2").font = { bold: true, size: 16 };
+  ws.mergeCells("I5:K5");
+  ws.getCell("I5").value = "PCS";
+  ws.getCell("I5").font = { bold: true };
+  ws.getCell("I5").alignment = { horizontal: "center" };
+
+  const headerRow = 7;
+  const headers = ["No", "Tgl", "Job", "Detail Job", "Customer", "Lokasi", "Plan", "Aging", "Status", "Spareparts", "Mekanik", "Final", "Keterangan"];
+  ws.getRow(headerRow).values = [, ...headers];
+  ws.getRow(headerRow).font = { bold: true };
+  ws.getRow(headerRow).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getRow(headerRow).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF7D9DD" } };
+
+  const widths = [6, 14, 12, 28, 20, 16, 14, 8, 14, 18, 16, 10, 18];
+  widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+
+  let rowIdx = headerRow + 1;
+  rowsView.forEach((r) => {
+    ws.getRow(rowIdx).values = [
+      r.no,
+      r.tgl,
+      r.job,
+      r.detail,
+      r.customer,
+      r.lokasi,
+      r.plan,
+      Number(r.aging),
+      r.status,
+      r.spareparts,
+      r.mekanik,
+      r.final,
+      r.keterangan,
+    ];
+    rowIdx += 1;
+  });
+
+  for (let r = headerRow; r < rowIdx; r += 1) {
+    for (let c = 1; c <= headers.length; c += 1) {
+      const cell = ws.getCell(r, c);
+      cell.border = {
+        top: { style: "thin", color: { argb: "FFBFC5D2" } },
+        left: { style: "thin", color: { argb: "FFBFC5D2" } },
+        bottom: { style: "thin", color: { argb: "FFBFC5D2" } },
+        right: { style: "thin", color: { argb: "FFBFC5D2" } },
+      };
+      if (r > headerRow) cell.alignment = { vertical: "middle", horizontal: c === 1 || c === 8 ? "center" : "left" };
+    }
+  }
 
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename=\"${filenameBase}.xlsx\"`);

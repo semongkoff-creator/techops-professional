@@ -841,6 +841,41 @@ table { width: 100%; min-width: 780px; }
 .report-empty-card p {
   color: #9b4c54 !important;
 }
+.report-mobile-item {
+  border: 1px solid #dce4f0;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f8fbff 0%, #f2f6fd 100%);
+}
+.report-item-main {
+  min-width: 0;
+}
+.report-item-title {
+  display: inline-block;
+  font-size: 1rem;
+  color: #1f3557;
+  letter-spacing: -.01em;
+  margin-bottom: .2rem;
+}
+.report-item-summary {
+  color: #51688d;
+  font-size: .9rem;
+  line-height: 1.4;
+}
+.report-status-badge {
+  border-radius: 999px !important;
+  padding: .32rem .55rem !important;
+  font-weight: 700;
+  color: #2b4f86 !important;
+  border-color: #cfdcf2 !important;
+  background: #edf4ff !important;
+}
+.report-detail-box {
+  border: 1px dashed #c7d7f2;
+  border-radius: 10px;
+  background: #f8fbff;
+  padding: .5rem .6rem;
+  line-height: 1.45;
+}
 .mobile-stitch-topbar {
   border: 1px solid #d8e1ef;
   border-radius: 14px;

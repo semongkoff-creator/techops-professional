@@ -8,7 +8,12 @@ export async function createReport(req, res) {
   const [taskRows] = await pool.execute("SELECT * FROM tasks WHERE id=? LIMIT 1", [task_id]);
   const task = taskRows[0];
   if (!task) return res.status(404).json({ message: "Task not found" });
-  if (task.technician_id !== req.user.id) return res.status(403).json({ message: "Forbidden" });
+  const isTechnicianOwner = Number(task.technician_id) === Number(req.user.id);
+  const isStaffOwner = Number(task.created_by_atasan_id) === Number(req.user.id);
+  const isStaffRole = req.user.role === "staff";
+  // Staff boleh submit laporan untuk task yang dia pegang, atau task yang berada di supervisor tujuan.
+  const canSubmitAsStaff = isStaffRole && (isStaffOwner || Number(task.supervisor_id) === Number(supervisor_id));
+  if (!isTechnicianOwner && !canSubmitAsStaff) return res.status(403).json({ message: "Forbidden" });
   const [spvRows] = await pool.execute("SELECT id FROM users WHERE id=? AND role='supervisor' LIMIT 1", [supervisor_id]);
   const supervisor = spvRows[0];
   if (!supervisor) return res.status(400).json({ message: "Supervisor tidak valid" });
@@ -20,7 +25,16 @@ export async function createReport(req, res) {
   );
 
   await createAuditLog({ actorUserId: req.user.id, action: "report.submit", entityType: "report", entityId: result.insertId, newValue: { report_status: "submitted_by_technician" } });
-  await createNotification({ userId: supervisor_id, title: "Laporan Baru dari Teknisi", message: `Task ${task.code}`, type: "report_submitted", referenceType: "report", referenceId: result.insertId });
+  const fromRole = req.user.role === "staff" ? "Staff" : "Teknisi";
+  await createNotification({ userId: supervisor_id, title: `Laporan Baru dari ${fromRole}`, message: `Task ${task.code}`, type: "report_submitted", referenceType: "report", referenceId: result.insertId });
+  await createNotification({
+    userId: req.user.id,
+    title: "Laporan Berhasil Dikirim",
+    message: `Laporan untuk ${task.code} sudah masuk ke supervisor`,
+    type: "report_submit_success",
+    referenceType: "report",
+    referenceId: result.insertId,
+  });
 
   return res.status(201).json({ id: result.insertId });
 }
@@ -28,7 +42,10 @@ export async function createReport(req, res) {
 export async function listReports(req, res) {
   let sql = "SELECT r.*, t.code as task_code, t.title as task_title FROM daily_reports r JOIN tasks t ON t.id=r.task_id WHERE 1=1";
   const params = [];
-  if (req.user.role === "atasan") {
+  if (req.user.role === "staff") {
+    sql += " AND (r.technician_id=? OR t.created_by_atasan_id=?)";
+    params.push(req.user.id, req.user.id);
+  } else if (req.user.role === "atasan") {
     sql += " AND t.created_by_atasan_id=? AND r.report_status IN ('forwarded_to_atasan','approved_by_atasan','needs_revision')";
     params.push(req.user.id);
   }

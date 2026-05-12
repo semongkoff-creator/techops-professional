@@ -3,6 +3,17 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 export const ASSET_BASE = API_BASE.replace(/\/api\/?$/, "");
 
 type Method = "GET" | "POST" | "PATCH" | "DELETE";
+const DEVICE_ID_KEY = "techops-device-id-v1";
+
+function getDeviceId() {
+  const existing = localStorage.getItem(DEVICE_ID_KEY);
+  if (existing) return existing;
+  const created = (typeof crypto !== "undefined" && "randomUUID" in crypto)
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  localStorage.setItem(DEVICE_ID_KEY, created);
+  return created;
+}
 
 function getToken() {
   return localStorage.getItem("token");
@@ -18,7 +29,8 @@ function clearToken() {
 
 function authHeader() {
   const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  const base = { "x-device-id": getDeviceId() };
+  return token ? { ...base, Authorization: `Bearer ${token}` } : base;
 }
 
 let refreshPromise: Promise<string> | null = null;
@@ -29,7 +41,7 @@ async function refreshAccessToken(): Promise<string> {
       const res = await fetch(`${API_BASE}/auth/refresh`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-device-id": getDeviceId() },
       });
       if (!res.ok) throw new Error("refresh_failed");
       const data = await res.json() as { token?: string };

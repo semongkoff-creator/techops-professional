@@ -8,11 +8,16 @@ function normalizeRole(role) {
 export function auth(req, res, next) {
   const authHeader = req.headers.authorization || "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const deviceId = req.headers["x-device-id"];
 
   if (!token) return res.status(401).json({ message: "Unauthorized" });
+  if (!deviceId || typeof deviceId !== "string") return res.status(401).json({ message: "Missing device id" });
 
   try {
     req.user = verifyAccessToken(token);
+    if (!req.user.did || req.user.did !== deviceId) {
+      return res.status(401).json({ message: "Session mismatch, login ulang di device ini." });
+    }
     req.user.role = normalizeRole(req.user.role);
     next();
   } catch {

@@ -1,13 +1,13 @@
 import { useState } from "react";
 
 export function LoginPage({ onLogin }: { onLogin: (u: string, p: string) => Promise<void> }) {
-  const [username, setUsername] = useState("atasan1");
+  const [username, setUsername] = useState("staff1");
   const [password, setPassword] = useState("password");
   const [error, setError] = useState("");
   const demoAccounts = [
     { label: "TEKNISI", value: "teknisi1" },
     { label: "SUPERVISOR", value: "spv1" },
-    { label: "ATASAN", value: "atasan1" },
+    { label: "STAFF", value: "staff1" },
   ];
 
   return (
@@ -35,7 +35,7 @@ export function LoginPage({ onLogin }: { onLogin: (u: string, p: string) => Prom
             className="form-control form-control-lg rounded-pill py-3 px-4 mb-3 login-input"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="teknisi / supervisor / atasan"
+            placeholder="teknisi / staff / supervisor"
             required
           />
 
@@ -53,7 +53,7 @@ export function LoginPage({ onLogin }: { onLogin: (u: string, p: string) => Prom
           {error && <div className="alert alert-danger py-2">{error}</div>}
 
           <button type="submit" className="btn btn-primary btn-lg w-100 rounded-pill fw-semibold py-3 mb-4 login-submit-btn">
-            Masuk ke Dashboard
+            Login
           </button>
 
           <div className="demo">

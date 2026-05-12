@@ -15,6 +15,8 @@ function refreshCookieConfig() {
 
 export async function login(req, res) {
   const { username, password } = req.body;
+  const deviceId = req.headers["x-device-id"];
+  if (!deviceId || typeof deviceId !== "string") return res.status(400).json({ message: "Missing device id" });
   const [rows] = await pool.execute(
     "SELECT id,name,username,password_hash,role,is_active FROM users WHERE username=? LIMIT 1",
     [username],
@@ -25,8 +27,8 @@ export async function login(req, res) {
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ message: "Invalid credentials" });
 
-  const accessToken = signAccessToken(user);
-  const refreshToken = signRefreshToken(user);
+  const accessToken = signAccessToken(user, deviceId);
+  const refreshToken = signRefreshToken(user, deviceId);
   res.cookie("refresh_token", refreshToken, refreshCookieConfig());
 
   return res.json({ token: accessToken, user: { id: user.id, name: user.name, username: user.username, role: user.role } });
@@ -34,16 +36,19 @@ export async function login(req, res) {
 
 export async function refresh(req, res) {
   const token = req.cookies?.refresh_token;
+  const deviceId = req.headers["x-device-id"];
+  if (!deviceId || typeof deviceId !== "string") return res.status(400).json({ message: "Missing device id" });
   if (!token) return res.status(401).json({ message: "Missing refresh token" });
 
   try {
     const payload = verifyRefreshToken(token);
+    if (payload.did !== deviceId) return res.status(401).json({ message: "Session mismatch, login ulang di device ini." });
     const [rows] = await pool.execute("SELECT id,name,username,role,is_active FROM users WHERE id=? LIMIT 1", [payload.id]);
     const user = rows[0];
     if (!user || !user.is_active) return res.status(401).json({ message: "Invalid refresh token" });
 
-    const accessToken = signAccessToken(user);
-    const rotatedRefresh = signRefreshToken(user);
+    const accessToken = signAccessToken(user, deviceId);
+    const rotatedRefresh = signRefreshToken(user, deviceId);
     res.cookie("refresh_token", rotatedRefresh, refreshCookieConfig());
     return res.json({ token: accessToken });
   } catch {

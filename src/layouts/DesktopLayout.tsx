@@ -5,7 +5,7 @@ import type { Page, Theme } from "../types/app";
 import { Avatar } from "../components/Avatar";
 
 export function DesktopLayout({ user, page, setPage, unread, logout, theme, onToggleTheme, children }: { user: User; page: Page; setPage: (p: Page) => void; unread: number; logout: () => void; theme: Theme; onToggleTheme: () => void; children: ReactNode; }) {
-  const isMonitoringRole = user.role === "supervisor" || user.role === "atasan";
+  const isMonitoringRole = user.role === "supervisor";
   const pageTitle =
     page === "dashboard" ? "Dashboard" :
     page === "tasks" ? "Tasks" :
@@ -54,3 +54,4 @@ export function DesktopLayout({ user, page, setPage, unread, logout, theme, onTo
     </div>
   );
 }
+

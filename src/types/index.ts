@@ -1,4 +1,4 @@
-export type Role = "atasan" | "supervisor" | "teknisi" | "technician";
+export type Role = "staff" | "atasan" | "supervisor" | "teknisi" | "technician";
 
 export type User = {
   id: number;
@@ -14,6 +14,7 @@ export type Task = {
   code: string;
   title: string;
   description: string;
+  customer?: string | null;
   location: string;
   priority: "low" | "medium" | "high";
   status: "draft_to_supervisor" | "assigned_to_technician" | "in_progress" | "completed" | "closed";
