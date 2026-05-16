@@ -36,14 +36,18 @@ export async function dashboardCharts(req, res) {
   return res.json({ taskByDay: rows });
 }
 
-export async function exportDummy(req, res) {
-  const { from, to, technician_id, format } = req.query;
+export async function exportData(req, res) {
+  const { from, to, technician_id, format, source } = req.query;
+  const selectedSource = String(source || "reports").toLowerCase();
   const selectedFormat = String(format || "pdf").toLowerCase();
   if (!["pdf", "xls", "xlsx"].includes(selectedFormat)) {
     return res.status(400).json({ message: "Invalid format. Use pdf or xls" });
   }
+  if (!["tasks", "reports"].includes(selectedSource)) {
+    return res.status(400).json({ message: "Invalid source. Use tasks or reports" });
+  }
 
-  const baseSelect = `SELECT
+  const taskBaseSelect = `SELECT
     t.id,
     t.code,
     t.title,
@@ -60,55 +64,91 @@ export async function exportDummy(req, res) {
   LEFT JOIN users st ON st.id = t.created_by_atasan_id
   LEFT JOIN users te ON te.id = t.technician_id
   WHERE 1=1`;
-  let sql = baseSelect;
+  const reportBaseSelect = `SELECT
+    r.id,
+    t.code,
+    t.title,
+    t.customer,
+    t.location,
+    r.report_date,
+    r.progress_percent AS completion_percent,
+    r.issue_text,
+    r.summary_text,
+    r.report_status AS status,
+    st.name AS staff_name,
+    te.name AS technician_name
+  FROM daily_reports r
+  JOIN tasks t ON t.id = r.task_id
+  LEFT JOIN users st ON st.id = t.created_by_atasan_id
+  LEFT JOIN users te ON te.id = r.technician_id
+  WHERE 1=1`;
+  let sql = selectedSource === "reports" ? reportBaseSelect : taskBaseSelect;
   const params = [];
 
   if (from && to) {
-    sql += " AND ((t.due_date BETWEEN ? AND ?) OR (DATE(t.created_at) BETWEEN ? AND ?))";
-    params.push(from, to, from, to);
+    sql += selectedSource === "reports"
+      ? " AND (DATE(r.report_date) BETWEEN ? AND ?)"
+      : " AND ((t.due_date BETWEEN ? AND ?) OR (DATE(t.created_at) BETWEEN ? AND ?))";
+    if (selectedSource === "reports") params.push(from, to);
+    else params.push(from, to, from, to);
   } else if (from) {
-    sql += " AND ((t.due_date >= ?) OR (DATE(t.created_at) >= ?))";
-    params.push(from, from);
+    sql += selectedSource === "reports"
+      ? " AND (DATE(r.report_date) >= ?)"
+      : " AND ((t.due_date >= ?) OR (DATE(t.created_at) >= ?))";
+    if (selectedSource === "reports") params.push(from);
+    else params.push(from, from);
   } else if (to) {
-    sql += " AND ((t.due_date <= ?) OR (DATE(t.created_at) <= ?))";
-    params.push(to, to);
+    sql += selectedSource === "reports"
+      ? " AND (DATE(r.report_date) <= ?)"
+      : " AND ((t.due_date <= ?) OR (DATE(t.created_at) <= ?))";
+    if (selectedSource === "reports") params.push(to);
+    else params.push(to, to);
   }
   if (technician_id) {
-    sql += " AND t.technician_id = ?";
+    sql += selectedSource === "reports" ? " AND r.technician_id = ?" : " AND t.technician_id = ?";
     params.push(Number(technician_id));
   }
   if (req.user.role === "atasan") {
     sql += " AND t.created_by_atasan_id = ?";
     params.push(req.user.id);
   } else if (req.user.role === "supervisor") {
-    sql += " AND t.supervisor_id = ?";
+    sql += selectedSource === "reports" ? " AND r.supervisor_id = ?" : " AND t.supervisor_id = ?";
     params.push(req.user.id);
   } else {
-    sql += " AND t.technician_id = ?";
+    sql += selectedSource === "reports" ? " AND r.technician_id = ?" : " AND t.technician_id = ?";
     params.push(req.user.id);
   }
-  sql += " ORDER BY t.created_at DESC, t.id DESC";
+  sql += selectedSource === "reports" ? " ORDER BY r.created_at DESC, r.id DESC" : " ORDER BY t.created_at DESC, t.id DESC";
 
   let [rows] = await pool.execute(sql, params);
   // Fallback untuk mode demo/testing: bila scoped role kosong, tampilkan data umum sesuai filter tanggal/teknisi.
   if (!rows.length) {
-    let fallbackSql = baseSelect;
+    let fallbackSql = selectedSource === "reports" ? reportBaseSelect : taskBaseSelect;
     const fallbackParams = [];
     if (from && to) {
-      fallbackSql += " AND ((t.due_date BETWEEN ? AND ?) OR (DATE(t.created_at) BETWEEN ? AND ?))";
-      fallbackParams.push(from, to, from, to);
+      fallbackSql += selectedSource === "reports"
+        ? " AND (DATE(r.report_date) BETWEEN ? AND ?)"
+        : " AND ((t.due_date BETWEEN ? AND ?) OR (DATE(t.created_at) BETWEEN ? AND ?))";
+      if (selectedSource === "reports") fallbackParams.push(from, to);
+      else fallbackParams.push(from, to, from, to);
     } else if (from) {
-      fallbackSql += " AND ((t.due_date >= ?) OR (DATE(t.created_at) >= ?))";
-      fallbackParams.push(from, from);
+      fallbackSql += selectedSource === "reports"
+        ? " AND (DATE(r.report_date) >= ?)"
+        : " AND ((t.due_date >= ?) OR (DATE(t.created_at) >= ?))";
+      if (selectedSource === "reports") fallbackParams.push(from);
+      else fallbackParams.push(from, from);
     } else if (to) {
-      fallbackSql += " AND ((t.due_date <= ?) OR (DATE(t.created_at) <= ?))";
-      fallbackParams.push(to, to);
+      fallbackSql += selectedSource === "reports"
+        ? " AND (DATE(r.report_date) <= ?)"
+        : " AND ((t.due_date <= ?) OR (DATE(t.created_at) <= ?))";
+      if (selectedSource === "reports") fallbackParams.push(to);
+      else fallbackParams.push(to, to);
     }
     if (technician_id) {
-      fallbackSql += " AND t.technician_id = ?";
+      fallbackSql += selectedSource === "reports" ? " AND r.technician_id = ?" : " AND t.technician_id = ?";
       fallbackParams.push(Number(technician_id));
     }
-    fallbackSql += " ORDER BY t.created_at DESC, t.id DESC";
+    fallbackSql += selectedSource === "reports" ? " ORDER BY r.created_at DESC, r.id DESC" : " ORDER BY t.created_at DESC, t.id DESC";
     [rows] = await pool.execute(fallbackSql, fallbackParams);
   }
   const toYmd = (v) => {
@@ -119,24 +159,24 @@ export async function exportDummy(req, res) {
   };
   const rowsView = rows.map((r, idx) => {
     const plan = toYmd(r.due_date);
+    const reportDate = toYmd(r.report_date);
     const due = r.due_date ? new Date(r.due_date) : null;
     const aging = due ? Math.max(0, Math.ceil((due.getTime() - Date.now()) / 86400000)) : 0;
     return {
       no: idx + 1,
-      tgl: plan,
-      job: String(r.priority || "-").toUpperCase(),
+      tgl: selectedSource === "reports" ? reportDate : plan,
+      job: selectedSource === "reports" ? "LAPORAN" : String(r.priority || "-").toUpperCase(),
       detail: r.title || "-",
       customer: r.customer || "-",
       lokasi: r.location || "-",
-      plan,
-      aging: String(aging),
+      plan: selectedSource === "reports" ? reportDate : plan,
+      aging: selectedSource === "reports" ? "-" : String(aging),
       status: r.status || "-",
       progress: Number(r.completion_percent || 0),
-      spareparts: "-",
       staff: r.staff_name || "-",
       mekanik: r.technician_name || "-",
-      final: ["completed", "closed"].includes(String(r.status || "")) ? "CLOSE" : "OPEN",
-      keterangan: r.description || "-",
+      final: selectedSource === "reports" ? "CLOSE" : ["completed", "closed"].includes(String(r.status || "")) ? "CLOSE" : "OPEN",
+      keterangan: selectedSource === "reports" ? `${r.issue_text || "-"}\n${r.summary_text || "-"}` : r.description || "-",
     };
   });
   const filenameBase = `techops-report-${from || "all"}-${to || "all"}`;
@@ -168,7 +208,6 @@ export async function exportDummy(req, res) {
       { key: "aging", label: "Aging", w: 24 },
       { key: "status", label: "Status", w: 50 },
       { key: "progress", label: "Progress", w: 38 },
-      { key: "spareparts", label: "Spareparts", w: 46 },
       { key: "staff", label: "Staff", w: 50 },
       { key: "mekanik", label: "Mekanik", w: 50 },
       { key: "final", label: "Final", w: 30 },
@@ -204,7 +243,6 @@ export async function exportDummy(req, res) {
           r.aging,
           r.status,
           `${r.progress}%`,
-          r.spareparts,
           r.staff,
           r.mekanik,
           r.final,
@@ -262,7 +300,7 @@ export async function exportDummy(req, res) {
   ws.getCell("I5").alignment = { horizontal: "center" };
 
   const headerRow = 7;
-  const headers = ["No", "Tgl", "Job", "Detail Job", "Customer", "Lokasi", "Plan", "Aging", "Status", "Spareparts", "Mekanik", "Final", "Keterangan"];
+  const headers = ["No", "Tgl", "Job", "Detail Job", "Customer", "Lokasi", "Plan", "Aging", "Status", "Staff", "Mekanik", "Final", "Keterangan"];
   ws.getRow(headerRow).values = [, ...headers];
   ws.getRow(headerRow).font = { bold: true };
   ws.getRow(headerRow).alignment = { horizontal: "center", vertical: "middle" };
@@ -283,7 +321,7 @@ export async function exportDummy(req, res) {
       r.plan,
       Number(r.aging),
       r.status,
-      r.spareparts,
+      r.staff,
       r.mekanik,
       r.final,
       r.keterangan,

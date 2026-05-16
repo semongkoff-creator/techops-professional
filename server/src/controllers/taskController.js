@@ -11,23 +11,29 @@ export async function createTask(req, res) {
   const isStaff = req.user.role === "staff" || req.user.role === "atasan";
   const isTechnician = req.user.role === "teknisi" || req.user.role === "technician";
   const selectedSupervisorId = isSupervisor ? req.user.id : Number(supervisor_id);
-  const selectedStaffId = isSupervisor
-    ? (staff_id ? Number(staff_id) : req.user.id)
+  let selectedStaffId = isSupervisor
+    ? (staff_id ? Number(staff_id) : null)
     : isStaff
-      ? (staff_id ? Number(staff_id) : req.user.id)
-      : Number(staff_id);
+      ? (staff_id ? Number(staff_id) : null)
+      : (staff_id ? Number(staff_id) : null);
   const selectedTechnicianId = isTechnician ? req.user.id : (technician_id ? Number(technician_id) : null);
   const pct = Number.isFinite(Number(completion_percent)) ? Number(completion_percent) : 0;
   const initialStatus = selectedTechnicianId ? "assigned_to_technician" : "draft_to_supervisor";
 
   if (!selectedSupervisorId) return res.status(400).json({ message: "Supervisor wajib diisi." });
-  if (isTechnician && !selectedStaffId) return res.status(400).json({ message: "Staff wajib diisi." });
 
   const [spvRows] = await pool.execute("SELECT id FROM users WHERE id=? AND role='supervisor' LIMIT 1", [selectedSupervisorId]);
   if (!spvRows[0]) return res.status(400).json({ message: "Supervisor tidak valid" });
 
-  const [staffRows] = await pool.execute("SELECT id FROM users WHERE id=? AND role IN ('staff','atasan') LIMIT 1", [selectedStaffId]);
-  if (!staffRows[0]) return res.status(400).json({ message: "Staff tidak valid" });
+  // Staff optional: jika kosong (atau supervisor isi dirinya sendiri), tetap boleh lanjut.
+  if (selectedStaffId) {
+    const [staffRows] = await pool.execute(
+      "SELECT id, role FROM users WHERE id=? LIMIT 1",
+      [selectedStaffId],
+    );
+    const staffUser = staffRows[0];
+    if (!staffUser) selectedStaffId = null;
+  }
 
   if (selectedTechnicianId) {
     const [techRows] = await pool.execute("SELECT id FROM users WHERE id=? AND role='teknisi' LIMIT 1", [selectedTechnicianId]);

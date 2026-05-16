@@ -1,0 +1,70 @@
+name: Bug report
+about: Laporkan bug agar tim bisa reproduksi dan memperbaiki dengan cepat.
+title: "[BUG] "
+labels: ["bug"]
+assignees: []
+
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Ringkasan Bug
+      description: Jelaskan bug secara singkat.
+      placeholder: Contoh: Status tugas tidak berubah setelah supervisor klik Assign.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Langkah Reproduksi
+      description: Tulis langkah yang bisa diulang.
+      placeholder: |
+        1. Login sebagai spv1
+        2. Buka halaman Tugas
+        3. Pilih teknisi lalu klik Assign
+        4. Lihat status tugas
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Hasil yang Diharapkan
+      placeholder: Status berubah menjadi assigned_to_technician.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Hasil Aktual
+      placeholder: Status tetap pending dan tidak ada notifikasi.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: role
+    attributes:
+      label: Role Terdampak
+      options:
+        - atasan
+        - supervisor
+        - teknisi
+        - semua role
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: Browser/OS atau lokal/staging/production.
+      placeholder: Chrome 124, Windows 11, local
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error Log / Screenshot
+      description: Tempel log error atau lampirkan screenshot.
+      render: shell

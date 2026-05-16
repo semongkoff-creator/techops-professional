@@ -29,11 +29,25 @@ export async function createReport(req, res) {
   await createNotification({ userId: supervisor_id, title: `Laporan Baru dari ${fromRole}`, message: `Task ${task.code}`, type: "report_submitted", referenceType: "report", referenceId: result.insertId });
   await createNotification({
     userId: req.user.id,
-    title: "Laporan Berhasil Dikirim",
-    message: `Laporan untuk ${task.code} sudah masuk ke supervisor`,
+    title: "Laporan Selesai Berhasil Dikirim",
+    message: `Laporan selesai untuk ${task.code} sudah masuk ke supervisor`,
     type: "report_submit_success",
     referenceType: "report",
     referenceId: result.insertId,
+  });
+
+  // Sinkronisasi: saat laporan selesai dibuat, task terkait dianggap selesai.
+  await pool.execute(
+    "UPDATE tasks SET completion_percent=100, status='completed', updated_at=NOW() WHERE id=?",
+    [task_id],
+  );
+  await createAuditLog({
+    actorUserId: req.user.id,
+    action: "task.auto_complete_from_report",
+    entityType: "task",
+    entityId: Number(task_id),
+    oldValue: { status: task.status, completion_percent: task.completion_percent },
+    newValue: { status: "completed", completion_percent: 100 },
   });
 
   return res.status(201).json({ id: result.insertId });

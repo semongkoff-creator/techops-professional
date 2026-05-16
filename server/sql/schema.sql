@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   location VARCHAR(200) NOT NULL,
   priority VARCHAR(10) NOT NULL CHECK (priority IN ('low', 'medium', 'high')),
   status VARCHAR(30) NOT NULL DEFAULT 'draft_to_supervisor' CHECK (status IN ('draft_to_supervisor', 'assigned_to_technician', 'in_progress', 'completed', 'closed')),
-  created_by_atasan_id BIGINT NOT NULL REFERENCES users(id),
+  created_by_atasan_id BIGINT REFERENCES users(id),
   supervisor_id BIGINT NOT NULL REFERENCES users(id),
   technician_id BIGINT REFERENCES users(id),
   due_date DATE,

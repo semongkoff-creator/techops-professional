@@ -135,6 +135,7 @@ export function ExportPage({ technicians }: { technicians: User[] }) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [technician, setTechnician] = useState("");
+  const [source, setSource] = useState<"tasks" | "reports">("reports");
   const [format, setFormat] = useState<"pdf" | "xlsx">("pdf");
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
@@ -146,6 +147,7 @@ export function ExportPage({ technicians }: { technicians: User[] }) {
       if (from) query.set("from", from);
       if (to) query.set("to", to);
       if (technician) query.set("technician_id", technician);
+      query.set("source", source);
       query.set("format", format);
       await api.exportData(`?${query.toString()}`, format);
       setResult("File export berhasil diunduh.");
@@ -156,7 +158,7 @@ export function ExportPage({ technicians }: { technicians: User[] }) {
     }
   }
 
-  return <section className="card"><div className="card-body d-grid gap-2"><h5>Export</h5><DatePickerField value={from} onChange={setFrom} /><DatePickerField value={to} onChange={setTo} /><FancySelect value={technician} onChange={setTechnician} options={[{ value: "", label: "Semua Teknisi" }, ...technicians.map((t) => ({ value: String(t.id), label: t.name }))]} /><FancySelect value={format} onChange={setFormat} options={[{ value: "pdf", label: "PDF" }, { value: "xlsx", label: "XLSX" }]} /><button className="btn btn-primary" disabled={loading} onClick={generate}>{loading ? "Memproses..." : "Generate"}</button>{result && <div className="alert alert-success py-2 mb-0">{result}</div>}</div></section>;
+  return <section className="card"><div className="card-body d-grid gap-2"><h5>Export</h5><DatePickerField value={from} onChange={setFrom} /><DatePickerField value={to} onChange={setTo} /><FancySelect value={technician} onChange={setTechnician} options={[{ value: "", label: "Semua Teknisi" }, ...technicians.map((t) => ({ value: String(t.id), label: t.name }))]} /><FancySelect value={source} onChange={(v) => setSource(v as "tasks" | "reports")} options={[{ value: "reports", label: "Laporan Selesai" }, { value: "tasks", label: "Task" }]} /><FancySelect value={format} onChange={setFormat} options={[{ value: "pdf", label: "PDF" }, { value: "xlsx", label: "XLSX" }]} /><button className="btn btn-primary" disabled={loading} onClick={generate}>{loading ? "Memproses..." : "Generate"}</button>{result && <div className="alert alert-success py-2 mb-0">{result}</div>}</div></section>;
 }
 
 export function ProfilePage({ user, isDesktop, onChanged, onOpenNotifications, onLogout, tasks = [] }: { user: User; isDesktop: boolean; onChanged: () => Promise<void>; onOpenNotifications: () => Promise<void>; onLogout: () => void | Promise<void>; tasks?: Task[] }) {

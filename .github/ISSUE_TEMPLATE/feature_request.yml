@@ -1,0 +1,66 @@
+name: Feature request
+about: Ajukan kebutuhan fitur baru atau peningkatan alur.
+title: "[FEATURE] "
+labels: ["enhancement"]
+assignees: []
+
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Masalah/Kebutuhan
+      description: Apa masalah bisnis/operasional yang ingin diselesaikan?
+      placeholder: Supervisor kesulitan melihat prioritas tugas yang overdue.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Solusi yang Diusulkan
+      description: Jelaskan solusi secara ringkas.
+      placeholder: Tambah filter dan badge overdue di halaman Tugas supervisor.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope Perubahan
+      description: Modul/halaman/API mana saja yang terdampak?
+      placeholder: Frontend tugas, endpoint /api/tasks, notifikasi.
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Prioritas
+      options:
+        - high
+        - medium
+        - low
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact_role
+    attributes:
+      label: Dampak ke Role
+      options:
+        - atasan
+        - supervisor
+        - teknisi
+        - semua role
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Kriteria selesai yang bisa diuji.
+      placeholder: |
+        - Supervisor bisa memfilter tugas overdue.
+        - Badge overdue tampil konsisten di mobile dan desktop.
+        - Tidak mengubah kontrak API existing.
+    validations:
+      required: true
