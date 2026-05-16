@@ -20,6 +20,7 @@ export default function App() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [supervisors, setSupervisors] = useState<User[]>([]);
   const [technicians, setTechnicians] = useState<User[]>([]);
+  const [staffs, setStaffs] = useState<User[]>([]);
   const [atasans, setAtasans] = useState<User[]>([]);
   const [summary, setSummary] = useState<{ taskStats: Array<{ status: string; total: number }>; reportStats: Array<{ report_status: string; total: number }> } | null>(null);
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem("techops-theme") as Theme) || "light");
@@ -57,13 +58,14 @@ export default function App() {
 
   async function reload() {
     if (!user) return;
-    const [t, r, n, ds, spv, tek, atasanUsers, allUsers] = await Promise.allSettled([
+    const [t, r, n, ds, spv, tek, staffUsers, atasanUsers, allUsers] = await Promise.allSettled([
       api.tasks(),
       api.reports(),
       api.notifications(),
       api.dashboardSummary(),
       api.users("supervisor"),
       api.users("teknisi"),
+      api.users("staff"),
       api.users("atasan"),
       api.users(),
     ]);
@@ -80,12 +82,16 @@ export default function App() {
     const techniciansData = tek.status === "fulfilled"
       ? (tek.value as User[])
       : usersFallback.filter((u) => u.role === "teknisi" || u.role === "technician");
+    const staffsData = staffUsers.status === "fulfilled"
+      ? (staffUsers.value as User[])
+      : usersFallback.filter((u) => u.role === "staff");
     const atasansData = atasanUsers.status === "fulfilled"
       ? (atasanUsers.value as User[])
       : usersFallback.filter((u) => u.role === "atasan");
 
     setSupervisors(supervisorsData);
     setTechnicians(techniciansData);
+    setStaffs(staffsData);
     setAtasans(atasansData);
   }
 
@@ -169,14 +175,14 @@ export default function App() {
 
   if (loading) return <div className="center">Loading...</div>;
   if (!user) return <LoginPage onLogin={login} />;
-  const rolePrefersDesktop = user.role === "supervisor" || user.role === "atasan";
+  const rolePrefersDesktop = user.role === "supervisor" || user.role === "atasan" || user.role === "staff";
   const isDesktop = rolePrefersDesktop ? true : false;
 
   const content = (() => {
     if (page === "dashboard") return <DashboardPage isDesktop={isDesktop} user={user} summary={summary} tasks={tasks} reports={reports} technicians={technicians} onlineTechIds={onlineTechIds} onJump={setPage} />;
-    if (page === "tasks") return <TasksPage isDesktop={isDesktop} user={user} tasks={tasks} supervisors={supervisors} technicians={technicians} atasans={atasans} onDone={reload} />;
+    if (page === "tasks") return <TasksPage isDesktop={isDesktop} user={user} tasks={tasks} supervisors={supervisors} technicians={technicians} staffs={staffs} atasans={atasans} onDone={reload} />;
     if (page === "reports") return <ReportsPage isDesktop={isDesktop} user={user} reports={reports} tasks={tasks} supervisors={supervisors} onDone={reload} />;
-    if (page === "analytics") return <AnalyticsPage tasks={tasks} />;
+    if (page === "analytics") return <AnalyticsPage tasks={tasks} technicians={technicians} />;
     if (page === "export") return <ExportPage technicians={technicians} />;
     if (page === "profile") return <ProfilePage user={user} isDesktop={isDesktop} tasks={tasks} onChanged={async () => { const me = await api.me(); setUser(me as User); }} onOpenNotifications={async () => { setPage("notifications"); }} onLogout={logout} />;
     return <NotificationsPage notifications={notifications} onReadAll={markAllNotificationsRead} onReadOne={markOneNotificationRead} busy={markingAllNotifications} />;

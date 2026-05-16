@@ -198,8 +198,8 @@ export function ProfilePage({ user, isDesktop, onChanged, onOpenNotifications, o
   const [passwordMode, setPasswordMode] = useState(false);
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email || "");
-  const [phone, setPhone] = useState(localStorage.getItem(phoneKey) || localStorage.getItem("techops-phone") || "");
-  const [department, setDepartment] = useState(localStorage.getItem(deptKey) || localStorage.getItem("techops-department") || "Field Operations");
+  const [phone, setPhone] = useState(localStorage.getItem(phoneKey) || "");
+  const [department, setDepartment] = useState(localStorage.getItem(deptKey) || "Field Operations");
   const [avatar, setAvatar] = useState(user.avatar_url || "");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -216,17 +216,13 @@ export function ProfilePage({ user, isDesktop, onChanged, onOpenNotifications, o
   const [memberErr, setMemberErr] = useState("");
   const [memberForm, setMemberForm] = useState({ name: "", email: "", phone_number: "", username: "", password: "", role: "teknisi" });
   useEffect(() => {
-    const legacyPhone = localStorage.getItem("techops-phone");
-    const legacyDept = localStorage.getItem("techops-department");
-    if (legacyPhone && !localStorage.getItem(phoneKey)) {
-      localStorage.setItem(phoneKey, legacyPhone);
-      setPhone(legacyPhone);
-    }
-    if (legacyDept && !localStorage.getItem(deptKey)) {
-      localStorage.setItem(deptKey, legacyDept);
-      setDepartment(legacyDept);
-    }
-  }, [phoneKey, deptKey]);
+    // Sync profile state by account, so avatar/phone do not leak between users.
+    setName(user.name || "");
+    setEmail(user.email || "");
+    setAvatar(user.avatar_url || "");
+    setPhone(localStorage.getItem(phoneKey) || "");
+    setDepartment(localStorage.getItem(deptKey) || "Field Operations");
+  }, [user.id, user.name, user.email, user.avatar_url, phoneKey, deptKey]);
   const myTasks = tasks.filter((t) => {
     if (user.role === "supervisor") return t.supervisor_id === user.id;
     if (user.role === "teknisi" || user.role === "technician") return t.technician_id === user.id;
