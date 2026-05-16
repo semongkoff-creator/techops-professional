@@ -1287,8 +1287,10 @@ table { width: 100%; min-width: 780px; }
     width: calc(100% + 1rem);
   }
   .mobile-stitch-topbar .avatar { width: 36px; height: 36px; }
-  .task-modal { max-height: calc(100vh - 110px); }
-  .task-modal-backdrop { padding-bottom: 1rem; }
+  .task-modal { max-height: calc(100vh - 150px); }
+  .task-modal-backdrop {
+    padding-bottom: calc(6.2rem + env(safe-area-inset-bottom, 0px));
+  }
   .report-form {
     border-top-left-radius: 0;
     border-top-right-radius: 0;
