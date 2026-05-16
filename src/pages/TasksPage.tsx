@@ -130,6 +130,10 @@ function FancySelect({
 
 export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, staffs, onDone }: { isDesktop: boolean; user: User; tasks: Task[]; supervisors: User[]; technicians: User[]; staffs: User[]; onDone: () => Promise<void>; }) {
   const supervisorUsers = useMemo(() => supervisors.filter((u) => String(u.role || "").toLowerCase() === "supervisor"), [supervisors]);
+  const preferredSupervisor = useMemo(
+    () => supervisorUsers.find((u) => !String(u.name || "").toLowerCase().includes("staff")) || supervisorUsers[0],
+    [supervisorUsers],
+  );
   const [form, setForm] = useState({ title: "", description: "", customer: "", location: "", priority: "medium", supervisor_id: "", staff_id: "", technician_id: "", documentation_image_url: "", due_date: "", completion_percent: "0" });
   const [assign, setAssign] = useState<{ [k: number]: string }>({});
   const [query, setQuery] = useState("");
@@ -186,7 +190,11 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
 
   const formatDate = (v: string) => (v ? new Date(v).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "-");
   const technicianName = (id?: number | null) => technicians.find((te) => te.id === id)?.name || "-";
-  const supervisorName = (id?: number | null) => supervisorUsers.find((sp) => sp.id === id)?.name || "-";
+  const supervisorName = (id?: number | null) => {
+    const exact = supervisorUsers.find((sp) => sp.id === id);
+    if (exact && !String(exact.name || "").toLowerCase().includes("staff")) return exact.name;
+    return preferredSupervisor?.name || exact?.name || "-";
+  };
   const staffName = (id?: number | null) => staffs.find((a) => a.id === id)?.name || "-";
   const toIntOrUndefined = (v: string) => {
     const n = Number(v);
@@ -282,10 +290,10 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
   };
 
   useEffect(() => {
-    if (!form.supervisor_id && supervisorUsers.length > 0) {
-      setForm((prev) => ({ ...prev, supervisor_id: String(supervisorUsers[0].id) }));
+    if (!form.supervisor_id && preferredSupervisor) {
+      setForm((prev) => ({ ...prev, supervisor_id: String(preferredSupervisor.id) }));
     }
-  }, [supervisorUsers, form.supervisor_id]);
+  }, [preferredSupervisor, form.supervisor_id]);
   useEffect(() => {
     if (!selectedTask) return;
     const next = selectedTask.completion_percent >= 100 ? "100" : selectedTask.completion_percent > 0 ? "50" : "0";
@@ -469,7 +477,7 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
       await onDone();
       setFormSuccess("Tugas berhasil disimpan.");
       showToast("Tugas berhasil ditambahkan.");
-      setForm({ title: "", description: "", customer: "", location: "", priority: "medium", supervisor_id: supervisorUsers[0] ? String(supervisorUsers[0].id) : "", staff_id: "", technician_id: "", documentation_image_url: "", due_date: "", completion_percent: "0" });
+      setForm({ title: "", description: "", customer: "", location: "", priority: "medium", supervisor_id: preferredSupervisor ? String(preferredSupervisor.id) : "", staff_id: "", technician_id: "", documentation_image_url: "", due_date: "", completion_percent: "0" });
       setShowCreateModal(false);
     } catch (err) {
       const msg = (err as Error).message || "Gagal menyimpan tugas.";
