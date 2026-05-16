@@ -32,6 +32,12 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Inter", "Segoe UI", Tahoma, sans-serif; font-weight: 600; background: var(--bg); color: var(--ink); transition: background .2s ease, color .2s ease; }
+body.kb-open .mobile-nav {
+  position: static;
+}
+body.kb-open .content {
+  padding-bottom: 1rem;
+}
 input, select, textarea, button { font: inherit; }
 h1, h2, h3, h4, h5, h6 { font-weight: 700; }
 p, span, label, input, textarea, select, button { font-weight: 600; }

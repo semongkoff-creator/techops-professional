@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Satria Piranti Perkasa</string>
+    <string name="title_activity_main">Satria Piranti Perkasa</string>
+    <string name="package_name">com.satriapiranti.techops</string>
+    <string name="custom_url_scheme">com.satriapiranti.techops</string>
+</resources>
