@@ -83,10 +83,15 @@ export async function getReportById(req, res) {
 }
 
 export async function reviewReport(req, res) {
-  const [rows] = await pool.execute("SELECT * FROM daily_reports WHERE id=? LIMIT 1", [req.params.id]);
+  const [rows] = await pool.execute(
+    "SELECT r.*, t.created_by_atasan_id FROM daily_reports r JOIN tasks t ON t.id=r.task_id WHERE r.id=? LIMIT 1",
+    [req.params.id],
+  );
   const report = rows[0];
   if (!report) return res.status(404).json({ message: "Report not found" });
-  if (report.supervisor_id !== req.user.id) return res.status(403).json({ message: "Forbidden" });
+  const isSupervisorOwner = Number(report.supervisor_id) === Number(req.user.id);
+  const isStaffBackup = req.user.role === "staff" && Number(report.created_by_atasan_id) === Number(req.user.id);
+  if (!isSupervisorOwner && !isStaffBackup) return res.status(403).json({ message: "Forbidden" });
 
   await pool.execute("UPDATE daily_reports SET report_status='reviewed_by_supervisor', reviewed_at=NOW(), updated_at=NOW() WHERE id=?", [req.params.id]);
   await createAuditLog({ actorUserId: req.user.id, action: "report.review", entityType: "report", entityId: Number(req.params.id), oldValue: { report_status: report.report_status }, newValue: { report_status: "reviewed_by_supervisor" } });
@@ -98,7 +103,9 @@ export async function forwardReport(req, res) {
   const [rows] = await pool.execute("SELECT r.*, t.created_by_atasan_id FROM daily_reports r JOIN tasks t ON t.id=r.task_id WHERE r.id=? LIMIT 1", [req.params.id]);
   const report = rows[0];
   if (!report) return res.status(404).json({ message: "Report not found" });
-  if (report.supervisor_id !== req.user.id) return res.status(403).json({ message: "Forbidden" });
+  const isSupervisorOwner = Number(report.supervisor_id) === Number(req.user.id);
+  const isStaffBackup = req.user.role === "staff" && Number(report.created_by_atasan_id) === Number(req.user.id);
+  if (!isSupervisorOwner && !isStaffBackup) return res.status(403).json({ message: "Forbidden" });
 
   await pool.execute("UPDATE daily_reports SET report_status='forwarded_to_atasan', forwarded_at=NOW(), updated_at=NOW() WHERE id=?", [req.params.id]);
   await createAuditLog({ actorUserId: req.user.id, action: "report.forward", entityType: "report", entityId: Number(req.params.id), oldValue: { report_status: report.report_status }, newValue: { report_status: "forwarded_to_atasan" } });

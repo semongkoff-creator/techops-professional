@@ -1,16 +1,84 @@
 import { pool } from "../db/pool.js";
 import { createAuditLog } from "../services/auditService.js";
-import { createNotification } from "../services/notificationService.js";
 import { generateTaskCode } from "../utils/taskCode.js";
+import fs from "fs";
+import path from "path";
 
 const taskStatuses = ["draft_to_supervisor", "assigned_to_technician", "in_progress", "completed", "closed"];
 
+function fileExtFromMime(mime) {
+  if (mime === "image/png") return "png";
+  if (mime === "image/webp") return "webp";
+  return "jpg";
+}
+
+async function uploadTaskImageToSupabase({ file, userId }) {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const bucket = process.env.SUPABASE_STORAGE_BUCKET || "avatars";
+  if (!supabaseUrl || !serviceRoleKey) return null;
+
+  const ext = fileExtFromMime(file.mimetype);
+  const objectPath = `tasks/${userId}/doc-${Date.now()}.${ext}`;
+  const endpoint = `${supabaseUrl.replace(/\/$/, "")}/storage/v1/object/${bucket}/${objectPath}`;
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      "Content-Type": file.mimetype || "application/octet-stream",
+      "x-upsert": "true",
+    },
+    body: file.buffer,
+  });
+
+  if (!res.ok) {
+    const payload = await res.text().catch(() => "");
+    const isMissingBucket = res.status === 404 && /bucket not found/i.test(payload || "");
+    if (isMissingBucket) return null;
+    throw new Error(`Gagal upload dokumentasi: ${payload || res.statusText}`);
+  }
+
+  return `${supabaseUrl.replace(/\/$/, "")}/storage/v1/object/public/${bucket}/${objectPath}`;
+}
+
+function saveTaskImageToLocal({ file, userId }) {
+  const ext = fileExtFromMime(file.mimetype);
+  const docsDir = path.resolve(process.cwd(), "server/uploads/tasks");
+  if (!fs.existsSync(docsDir)) {
+    fs.mkdirSync(docsDir, { recursive: true });
+  }
+  const filename = `task-doc-${userId}-${Date.now()}.${ext}`;
+  const localPath = path.join(docsDir, filename);
+  fs.writeFileSync(localPath, file.buffer);
+  return `/uploads/tasks/${filename}`;
+}
+
+export async function uploadTaskDocumentationImage(req, res) {
+  if (!req.file) return res.status(400).json({ message: "File dokumentasi wajib dipilih" });
+
+  let imagePath = null;
+  try {
+    imagePath = await uploadTaskImageToSupabase({ file: req.file, userId: req.user.id });
+  } catch (err) {
+    return res.status(500).json({ message: err.message || "Gagal upload dokumentasi" });
+  }
+  if (!imagePath) {
+    imagePath = saveTaskImageToLocal({ file: req.file, userId: req.user.id });
+  }
+  const publicUrl = imagePath.startsWith("/uploads")
+    ? `${req.protocol}://${req.get("host")}${imagePath}`
+    : imagePath;
+  return res.json({ message: "Dokumentasi berhasil diupload", documentation_image_url: publicUrl });
+}
+
 export async function createTask(req, res) {
-  const { title, description, customer, location, priority, supervisor_id, staff_id, technician_id, due_date, completion_percent } = req.body;
+  const { title, description, customer, location, priority, supervisor_id, staff_id, technician_id, documentation_image_url, due_date, completion_percent } = req.body;
   const isSupervisor = req.user.role === "supervisor";
   const isStaff = req.user.role === "staff" || req.user.role === "atasan";
   const isTechnician = req.user.role === "teknisi" || req.user.role === "technician";
-  const selectedSupervisorId = isSupervisor ? req.user.id : Number(supervisor_id);
+  let selectedSupervisorId = isSupervisor ? req.user.id : Number(supervisor_id);
   let selectedStaffId = isSupervisor
     ? (staff_id ? Number(staff_id) : null)
     : isStaff
@@ -20,6 +88,10 @@ export async function createTask(req, res) {
   const pct = Number.isFinite(Number(completion_percent)) ? Number(completion_percent) : 0;
   const initialStatus = selectedTechnicianId ? "assigned_to_technician" : "draft_to_supervisor";
 
+  if (!selectedSupervisorId && isTechnician) {
+    const [fallbackSpvRows] = await pool.execute("SELECT id FROM users WHERE role='supervisor' AND is_active=TRUE ORDER BY id ASC LIMIT 1");
+    selectedSupervisorId = Number(fallbackSpvRows?.[0]?.id || 0);
+  }
   if (!selectedSupervisorId) return res.status(400).json({ message: "Supervisor wajib diisi." });
 
   const [spvRows] = await pool.execute("SELECT id FROM users WHERE id=? AND role='supervisor' LIMIT 1", [selectedSupervisorId]);
@@ -43,9 +115,9 @@ export async function createTask(req, res) {
   const [[seqRow]] = await pool.query("SELECT COALESCE(MAX(id),0)+1 AS seq FROM tasks");
   const code = generateTaskCode(seqRow.seq);
   const [result] = await pool.execute(
-    `INSERT INTO tasks (code,title,description,customer,location,priority,status,created_by_atasan_id,supervisor_id,technician_id,due_date,completion_percent,created_at,updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())`,
-    [code, title, description, customer || null, location, priority, initialStatus, selectedStaffId, selectedSupervisorId, selectedTechnicianId, due_date || null, pct],
+    `INSERT INTO tasks (code,title,description,customer,location,priority,status,created_by_atasan_id,supervisor_id,technician_id,documentation_image_url,due_date,completion_percent,created_at,updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())`,
+    [code, title, description, customer || null, location, priority, initialStatus, selectedStaffId, selectedSupervisorId, selectedTechnicianId, documentation_image_url || null, due_date || null, pct],
   );
 
   await createAuditLog({
@@ -55,11 +127,6 @@ export async function createTask(req, res) {
     entityId: result.insertId,
     newValue: { status: initialStatus, supervisor_id: selectedSupervisorId, technician_id: selectedTechnicianId },
   });
-
-  await createNotification({ userId: selectedSupervisorId, title: "Tugas Baru", message: `${code} - ${title}`, type: "task_created", referenceType: "task", referenceId: result.insertId });
-  if (selectedTechnicianId) {
-    await createNotification({ userId: selectedTechnicianId, title: "Tugas Ditugaskan", message: `${code} - ${title}`, type: "task_assigned", referenceType: "task", referenceId: result.insertId });
-  }
 
   return res.status(201).json({ id: result.insertId, code });
 }
@@ -166,6 +233,7 @@ export async function updateTask(req, res) {
     priority = task.priority,
     supervisor_id = task.supervisor_id,
     due_date = task.due_date,
+    documentation_image_url = task.documentation_image_url,
     completion_percent = task.completion_percent,
   } = req.body;
   const pct = Number.isFinite(Number(completion_percent)) ? Number(completion_percent) : Number(task.completion_percent || 0);
@@ -175,8 +243,8 @@ export async function updateTask(req, res) {
     task.status === "assigned_to_technician" ? "assigned_to_technician" : "draft_to_supervisor";
 
   await pool.execute(
-    "UPDATE tasks SET title=?, description=?, customer=?, location=?, priority=?, supervisor_id=?, technician_id=?, due_date=?, completion_percent=?, status=?, updated_at=NOW() WHERE id=?",
-    [title, description, customer || null, location, priority, supervisor_id, req.body.technician_id ?? task.technician_id, due_date || null, pct, nextStatus, req.params.id],
+    "UPDATE tasks SET title=?, description=?, customer=?, location=?, priority=?, supervisor_id=?, technician_id=?, documentation_image_url=?, due_date=?, completion_percent=?, status=?, updated_at=NOW() WHERE id=?",
+    [title, description, customer || null, location, priority, supervisor_id, req.body.technician_id ?? task.technician_id, documentation_image_url || null, due_date || null, pct, nextStatus, req.params.id],
   );
   await createAuditLog({
     actorUserId: req.user.id,
@@ -184,7 +252,7 @@ export async function updateTask(req, res) {
     entityType: "task",
     entityId: Number(req.params.id),
     oldValue: task,
-    newValue: { title, description, customer, location, priority, supervisor_id, due_date, completion_percent: pct, status: nextStatus },
+    newValue: { title, description, customer, location, priority, supervisor_id, documentation_image_url, due_date, completion_percent: pct, status: nextStatus },
   });
   return res.json({ message: "Task updated" });
 }

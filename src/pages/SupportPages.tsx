@@ -1,9 +1,17 @@
 import { useMemo, useState } from "react";
-import type { Notification, Task } from "../types";
+import type { Notification, Task, User } from "../types";
 
-export function AnalyticsPage({ tasks }: { tasks: Task[] }) {
-  const completed = tasks.filter((t) => t.status === "completed" || t.status === "closed").length;
-  const completionRate = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
+export function AnalyticsPage({ tasks, technicians }: { tasks: Task[]; technicians: User[] }) {
+  const [selectedTechnicianId, setSelectedTechnicianId] = useState("");
+  const filteredTasks = useMemo(() => {
+    if (!selectedTechnicianId) return tasks;
+    const id = Number(selectedTechnicianId);
+    if (!Number.isFinite(id)) return tasks;
+    return tasks.filter((t) => Number(t.technician_id || 0) === id);
+  }, [tasks, selectedTechnicianId]);
+
+  const completed = filteredTasks.filter((t) => t.status === "completed" || t.status === "closed").length;
+  const completionRate = filteredTasks.length ? Math.round((completed / filteredTasks.length) * 100) : 0;
   const statusBuckets = [
     { key: "draft_to_supervisor", label: "Draft", color: "#94a3b8" },
     { key: "assigned_to_technician", label: "Assigned", color: "#3b82f6" },
@@ -11,7 +19,7 @@ export function AnalyticsPage({ tasks }: { tasks: Task[] }) {
     { key: "completed", label: "Done", color: "#22c55e" },
     { key: "closed", label: "Closed", color: "#0f766e" },
   ] as const;
-  const statusCounts = statusBuckets.map((b) => ({ ...b, total: tasks.filter((t) => t.status === b.key).length }));
+  const statusCounts = statusBuckets.map((b) => ({ ...b, total: filteredTasks.filter((t) => t.status === b.key).length }));
   const maxStatus = Math.max(1, ...statusCounts.map((s) => s.total));
 
   const priorityBuckets = [
@@ -19,7 +27,7 @@ export function AnalyticsPage({ tasks }: { tasks: Task[] }) {
     { key: "medium", label: "Medium", color: "#f59e0b" },
     { key: "low", label: "Low", color: "#22c55e" },
   ] as const;
-  const priorityCounts = priorityBuckets.map((b) => ({ ...b, total: tasks.filter((t) => t.priority === b.key).length }));
+  const priorityCounts = priorityBuckets.map((b) => ({ ...b, total: filteredTasks.filter((t) => t.priority === b.key).length }));
   const priorityTotal = priorityCounts.reduce((acc, cur) => acc + cur.total, 0);
   const [high, medium, low] = priorityCounts.map((p) => p.total);
   const safeTotal = priorityTotal || 1;
@@ -28,7 +36,27 @@ export function AnalyticsPage({ tasks }: { tasks: Task[] }) {
   const lPct = (low / safeTotal) * 100;
 
   return <section className="row g-3 analytics-shell">
-    <div className="col-md-4"><div className="card analytics-kpi"><div className="card-body"><h6>Total Task</h6><h3>{tasks.length}</h3></div></div></div>
+    <div className="col-12">
+      <div className="card analytics-panel">
+        <div className="card-body d-flex flex-wrap align-items-center gap-2">
+          <strong style={{ color: "#35517f" }}>Filter Mekanik:</strong>
+          <select
+            className="form-select"
+            style={{ maxWidth: 340 }}
+            value={selectedTechnicianId}
+            onChange={(e) => setSelectedTechnicianId(e.target.value)}
+          >
+            <option value="">Semua Mekanik</option>
+            {technicians.map((te) => (
+              <option key={te.id} value={String(te.id)}>
+                {te.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+    </div>
+    <div className="col-md-4"><div className="card analytics-kpi"><div className="card-body"><h6>Total Task</h6><h3>{filteredTasks.length}</h3></div></div></div>
     <div className="col-md-4"><div className="card analytics-kpi"><div className="card-body"><h6>Task Selesai</h6><h3>{completed}</h3></div></div></div>
     <div className="col-md-4"><div className="card analytics-kpi analytics-kpi-accent"><div className="card-body"><h6>Completion Rate</h6><h3>{completionRate}%</h3></div></div></div>
 

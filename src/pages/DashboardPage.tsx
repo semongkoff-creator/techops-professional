@@ -145,7 +145,7 @@ export function DashboardPage({ isDesktop, user, summary, tasks, reports, techni
           <div className="card dashboard-pro-card">
             <div className="card-body">
               <h5>Project Progress</h5>
-              <div className="progress-ring" style={{ background: `conic-gradient(#1d5ed8 0 ${progressPct}%, #d8e2f7 ${progressPct}% 100%)` }}>
+              <div className="progress-ring" style={{ background: `conic-gradient(#ff7a45 0 ${progressPct}%, #d8e2f7 ${progressPct}% 100%)` }}>
                 <div className="progress-ring-hole">
                   <strong>{progressPct}%</strong>
                   <span>Project Ended</span>

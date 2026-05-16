@@ -25,7 +25,10 @@ export function DesktopLayout({ user, page, setPage, unread, logout, theme, onTo
     <div className={isMonitoringRole ? "desktop-stage monitoring-desktop-stage" : "desktop-stage"}>
       <div className={isMonitoringRole ? "desktop-shell monitoring-desktop-shell" : "desktop-shell"}>
       <aside className="sidebar">
-        <div className="brand">TechOps Professional</div>
+        <div className="brand brand-with-logo">
+          <img src="/assets/logo-satria.jpg" alt="Satria Piranti Perkasa" className="brand-logo" />
+          <span>Satria Piranti Perkasa</span>
+        </div>
         {nav.map((n) => {
           const Icon = n.icon;
           return (
@@ -41,7 +44,13 @@ export function DesktopLayout({ user, page, setPage, unread, logout, theme, onTo
       </aside>
       <main className="content">
         <header className="topbar topbar-pro">
-          <div className="topbar-page">{pageTitle}</div>
+          <div className="topbar-brand-wrap">
+            <img src="/assets/logo-satria.jpg" alt="Satria Piranti Perkasa" className="topbar-brand-logo" />
+            <div className="topbar-brand-text">
+              <strong>Satria Piranti Perkasa</strong>
+              <span>{pageTitle}</span>
+            </div>
+          </div>
           <div className="inline">
             <button className="bell" onClick={onToggleTheme} aria-label="Toggle theme">{theme === "light" ? <Moon size={18} /> : <Sun size={18} />}</button>
             <button className="bell" onClick={() => setPage("notifications")}><Bell size={18} /> {unread}</button>

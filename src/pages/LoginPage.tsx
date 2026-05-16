@@ -4,11 +4,6 @@ export function LoginPage({ onLogin }: { onLogin: (u: string, p: string) => Prom
   const [username, setUsername] = useState("staff1");
   const [password, setPassword] = useState("password");
   const [error, setError] = useState("");
-  const demoAccounts = [
-    { label: "TEKNISI", value: "teknisi1" },
-    { label: "SUPERVISOR", value: "spv1" },
-    { label: "STAFF", value: "staff1" },
-  ];
 
   return (
     <div className="login-wrap d-flex align-items-center justify-content-center min-vh-100">
@@ -25,8 +20,10 @@ export function LoginPage({ onLogin }: { onLogin: (u: string, p: string) => Prom
         }}
       >
         <div className="card-body login-card-body">
-          <div className="login-logo mx-auto mb-3" aria-hidden="true">TP</div>
-          <h1 className="text-center fw-bold mb-1 login-title">TechOps LOGIN</h1>
+          <div className="login-logo-wrap mx-auto mb-3">
+            <img src="/assets/logo-satria.jpg" alt="Satria Piranti Perkasa" className="login-logo-img" />
+          </div>
+          <h1 className="text-center fw-bold mb-1 login-title">Satria Login</h1>
           <p className="text-center text-secondary mb-4 login-subtitle">Sistem Manajemen Operasional Terpadu</p>
 
           <label htmlFor="username" className="form-label fw-bold small text-secondary mb-2 login-label">USERNAME</label>
@@ -56,24 +53,6 @@ export function LoginPage({ onLogin }: { onLogin: (u: string, p: string) => Prom
             Login
           </button>
 
-          <div className="demo">
-            <div className="demo-title text-center mb-2">AKUN DEMO</div>
-            <div className="demo-buttons d-grid gap-2 d-md-flex">
-              {demoAccounts.map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  className="btn btn-light border fw-semibold flex-fill demo-btn"
-                  onClick={() => {
-                    setUsername(item.value);
-                    setPassword("password");
-                  }}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </form>
     </div>

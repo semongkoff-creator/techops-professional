@@ -57,7 +57,7 @@ function saveAvatarToLocal({ file, userId }) {
 export async function listUsers(req, res) {
   const { role } = req.query;
   const params = [];
-  let sql = "SELECT id,name,username,email,role,avatar_url,is_active FROM users WHERE is_active=TRUE";
+  let sql = "SELECT id,name,username,email,phone_number,role,avatar_url,is_active FROM users WHERE is_active=TRUE";
   if (role) {
     if (role === "teknisi" || role === "technician") {
       sql += " AND role IN (?,?)";
@@ -77,11 +77,25 @@ export async function listUsers(req, res) {
 
 export async function getUserById(req, res) {
   const [rows] = await pool.execute(
-    "SELECT id,name,username,email,role,avatar_url,is_active,created_at,updated_at FROM users WHERE id=? LIMIT 1",
+    "SELECT id,name,username,email,phone_number,role,avatar_url,is_active,created_at,updated_at FROM users WHERE id=? LIMIT 1",
     [req.params.id],
   );
   if (!rows[0]) return res.status(404).json({ message: "User not found" });
   return res.json(rows[0]);
+}
+
+export async function createMember(req, res) {
+  const { name, username, email, phone_number, password, role } = req.body;
+  const selectedRole = (role === "technician" ? "teknisi" : role);
+  if (!["teknisi", "staff"].includes(selectedRole)) {
+    return res.status(400).json({ message: "Role member tidak valid." });
+  }
+  const hash = await bcrypt.hash(password, 10);
+  await pool.execute(
+    "INSERT INTO users (name,username,email,phone_number,password_hash,role,is_active,created_at,updated_at) VALUES (?,?,?,?,?,?,TRUE,NOW(),NOW())",
+    [name, username, email || null, phone_number || null, hash, selectedRole],
+  );
+  return res.status(201).json({ message: "Member berhasil ditambahkan." });
 }
 
 export async function updateMyProfile(req, res) {

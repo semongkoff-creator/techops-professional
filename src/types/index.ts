@@ -5,6 +5,7 @@ export type User = {
   name: string;
   username: string;
   email?: string;
+  phone_number?: string | null;
   role: Role;
   avatar_url?: string | null;
 };
@@ -23,6 +24,7 @@ export type Task = {
   technician_id?: number | null;
   due_date?: string | null;
   completion_percent: number;
+  documentation_image_url?: string | null;
 };
 
 export type Report = {

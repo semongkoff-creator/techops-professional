@@ -102,7 +102,7 @@ function DatePickerField({
   };
 
   return (
-    <div className="fancy-date" ref={rootRef}>
+    <div className={`fancy-date${open ? " open" : ""}`} ref={rootRef}>
       <button type="button" className="fancy-select-trigger" onClick={() => setOpen((v) => !v)}>
         <span className={value ? "" : "date-placeholder"}>{label}</span>
         <span className="fancy-caret">v</span>
@@ -139,13 +139,28 @@ export function ExportPage({ technicians }: { technicians: User[] }) {
   const [format, setFormat] = useState<"pdf" | "xlsx">("pdf");
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
+  const toYmd = (v: string) => {
+    const s = (v || "").trim();
+    if (!s) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!m) return "";
+    const dd = m[1].padStart(2, "0");
+    const mm = m[2].padStart(2, "0");
+    const yyyy = m[3];
+    return `${yyyy}-${mm}-${dd}`;
+  };
 
   async function generate() {
     try {
       setLoading(true);
       const query = new URLSearchParams();
-      if (from) query.set("from", from);
-      if (to) query.set("to", to);
+      const fromYmd = toYmd(from);
+      const toYmdValue = toYmd(to);
+      if (from && !fromYmd) throw new Error("Format tanggal Dari harus DD/MM/YYYY");
+      if (to && !toYmdValue) throw new Error("Format tanggal Sampai harus DD/MM/YYYY");
+      if (fromYmd) query.set("from", fromYmd);
+      if (toYmdValue) query.set("to", toYmdValue);
       if (technician) query.set("technician_id", technician);
       query.set("source", source);
       query.set("format", format);
@@ -158,7 +173,22 @@ export function ExportPage({ technicians }: { technicians: User[] }) {
     }
   }
 
-  return <section className="card"><div className="card-body d-grid gap-2"><h5>Export</h5><DatePickerField value={from} onChange={setFrom} /><DatePickerField value={to} onChange={setTo} /><FancySelect value={technician} onChange={setTechnician} options={[{ value: "", label: "Semua Teknisi" }, ...technicians.map((t) => ({ value: String(t.id), label: t.name }))]} /><FancySelect value={source} onChange={(v) => setSource(v as "tasks" | "reports")} options={[{ value: "reports", label: "Laporan Selesai" }, { value: "tasks", label: "Task" }]} /><FancySelect value={format} onChange={setFormat} options={[{ value: "pdf", label: "PDF" }, { value: "xlsx", label: "XLSX" }]} /><button className="btn btn-primary" disabled={loading} onClick={generate}>{loading ? "Memproses..." : "Generate"}</button>{result && <div className="alert alert-success py-2 mb-0">{result}</div>}</div></section>;
+  return <section className="card export-panel"><div className="card-body d-grid gap-2"><h5>Export</h5>
+    <DatePickerField value={from} onChange={setFrom} placeholder="dd/mm/yyyy" />
+    <DatePickerField value={to} onChange={setTo} placeholder="dd/mm/yyyy" />
+    <select className="form-select export-native-select" value={technician} onChange={(e) => setTechnician(e.target.value)}>
+      <option value="">Semua Teknisi</option>
+      {technicians.map((t) => <option key={t.id} value={String(t.id)}>{t.name}</option>)}
+    </select>
+    <select className="form-select export-native-select" value={source} onChange={(e) => setSource(e.target.value as "tasks" | "reports")}>
+      <option value="reports">Laporan Selesai</option>
+      <option value="tasks">Task</option>
+    </select>
+    <select className="form-select export-native-select" value={format} onChange={(e) => setFormat(e.target.value as "pdf" | "xlsx")}>
+      <option value="pdf">PDF</option>
+      <option value="xlsx">XLSX</option>
+    </select>
+    <button className="btn btn-primary" disabled={loading} onClick={generate}>{loading ? "Memproses..." : "Generate"}</button>{result && <div className="alert alert-success py-2 mb-0">{result}</div>}</div></section>;
 }
 
 export function ProfilePage({ user, isDesktop, onChanged, onOpenNotifications, onLogout, tasks = [] }: { user: User; isDesktop: boolean; onChanged: () => Promise<void>; onOpenNotifications: () => Promise<void>; onLogout: () => void | Promise<void>; tasks?: Task[] }) {
@@ -180,6 +210,11 @@ export function ProfilePage({ user, isDesktop, onChanged, onOpenNotifications, o
   const [avatarMsg, setAvatarMsg] = useState("");
   const [avatarErr, setAvatarErr] = useState("");
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [memberMode, setMemberMode] = useState(false);
+  const [memberBusy, setMemberBusy] = useState(false);
+  const [memberMsg, setMemberMsg] = useState("");
+  const [memberErr, setMemberErr] = useState("");
+  const [memberForm, setMemberForm] = useState({ name: "", email: "", phone_number: "", username: "", password: "", role: "teknisi" });
   useEffect(() => {
     const legacyPhone = localStorage.getItem("techops-phone");
     const legacyDept = localStorage.getItem("techops-department");
@@ -200,7 +235,7 @@ export function ProfilePage({ user, isDesktop, onChanged, onOpenNotifications, o
   const totalProjects = myTasks.length;
   const tasksCompleted = myTasks.filter((t) => t.status === "completed" || t.status === "closed").length;
   const activeTasks = myTasks.filter((t) => ["assigned_to_technician", "in_progress", "draft_to_supervisor"].includes(t.status)).length;
-  if (!editMode && !passwordMode) {
+  if (!editMode && !passwordMode && !memberMode) {
     return <section className={`card profile-shell ${isDesktop ? "profile-shell-desktop" : "profile-shell-mobile"}`}><div className="card-body">
       {isDesktop ? (
         <div className="profile-desktop-grid">
@@ -252,6 +287,7 @@ export function ProfilePage({ user, isDesktop, onChanged, onOpenNotifications, o
               <button className="profile-menu-item" onClick={() => setEditMode(true)}><span><PencilLine size={16} /> Edit Profile</span><ChevronRight size={16} /></button>
               <button className="profile-menu-item" onClick={onOpenNotifications}><span><Bell size={16} /> Notification</span><ChevronRight size={16} /></button>
               <button className="profile-menu-item" onClick={() => setPasswordMode(true)}><span><KeyRound size={16} /> Change Password</span><ChevronRight size={16} /></button>
+              {(user.role === "supervisor" || user.role === "atasan") && <button className="profile-menu-item" onClick={() => setMemberMode(true)}><span><PencilLine size={16} /> Add Member</span><ChevronRight size={16} /></button>}
             </div>
           </div>
         </div>
@@ -267,6 +303,7 @@ export function ProfilePage({ user, isDesktop, onChanged, onOpenNotifications, o
             <button className="profile-menu-item" onClick={() => setEditMode(true)}><span><PencilLine size={16} /> Edit Profile</span><ChevronRight size={16} /></button>
             <button className="profile-menu-item" onClick={onOpenNotifications}><span><Bell size={16} /> Notification</span><ChevronRight size={16} /></button>
             <button className="profile-menu-item" onClick={() => setPasswordMode(true)}><span><KeyRound size={16} /> Change Password</span><ChevronRight size={16} /></button>
+            {(user.role === "supervisor" || user.role === "atasan") && <button className="profile-menu-item" onClick={() => setMemberMode(true)}><span><PencilLine size={16} /> Add Member</span><ChevronRight size={16} /></button>}
           </div>
           <button className="btn btn-primary w-100 mt-3" onClick={() => { void Promise.resolve(onLogout()); }}><LogOut size={16} /> Sign Out</button>
         </>
@@ -310,6 +347,47 @@ export function ProfilePage({ user, isDesktop, onChanged, onOpenNotifications, o
           setBusy(false);
         }
       }}>{busy ? "Menyimpan..." : "Simpan Password"}</button>
+    </div></section>;
+  }
+
+  if (memberMode) {
+    return <section className={`card profile-shell ${isDesktop ? "" : "profile-shell-mobile"}`}><div className="card-body d-grid gap-2">
+      <div className="d-flex align-items-center gap-2 mb-1"><button className="btn btn-light btn-sm" onClick={() => setMemberMode(false)}><ChevronLeft size={16} /></button><h5 className="mb-0">Add Member</h5></div>
+      <label className="small text-secondary">Nama</label><input className="form-control" value={memberForm.name} onChange={(e) => setMemberForm({ ...memberForm, name: e.target.value })} />
+      <label className="small text-secondary">Email</label><input className="form-control" value={memberForm.email} onChange={(e) => setMemberForm({ ...memberForm, email: e.target.value })} />
+      <label className="small text-secondary">No. HP</label><input className="form-control" value={memberForm.phone_number} onChange={(e) => setMemberForm({ ...memberForm, phone_number: e.target.value })} />
+      <label className="small text-secondary">Username</label><input className="form-control" value={memberForm.username} onChange={(e) => setMemberForm({ ...memberForm, username: e.target.value })} />
+      <label className="small text-secondary">Password</label><input className="form-control" type="password" value={memberForm.password} onChange={(e) => setMemberForm({ ...memberForm, password: e.target.value })} />
+      <label className="small text-secondary">Role</label>
+      <FancySelect value={memberForm.role} onChange={(v) => setMemberForm({ ...memberForm, role: v })} options={[{ value: "teknisi", label: "Teknisi" }, { value: "staff", label: "Staff" }]} />
+      {memberErr && <div className="alert alert-danger py-2 mb-0">{memberErr}</div>}
+      {memberMsg && <div className="alert alert-success py-2 mb-0">{memberMsg}</div>}
+      <button className="btn btn-primary" disabled={memberBusy} onClick={async () => {
+        setMemberErr("");
+        setMemberMsg("");
+        if (!memberForm.name.trim() || !memberForm.username.trim() || !memberForm.password.trim()) {
+          setMemberErr("Nama, username, dan password wajib diisi.");
+          return;
+        }
+        try {
+          setMemberBusy(true);
+          await api.createMember({
+            name: memberForm.name.trim(),
+            email: memberForm.email.trim() || undefined,
+            phone_number: memberForm.phone_number.trim() || undefined,
+            username: memberForm.username.trim(),
+            password: memberForm.password,
+            role: memberForm.role,
+          });
+          setMemberMsg("Member berhasil ditambahkan.");
+          setMemberForm({ name: "", email: "", phone_number: "", username: "", password: "", role: "teknisi" });
+          await onChanged();
+        } catch (err) {
+          setMemberErr((err as Error).message || "Gagal menambah member.");
+        } finally {
+          setMemberBusy(false);
+        }
+      }}>{memberBusy ? "Menyimpan..." : "Simpan Member"}</button>
     </div></section>;
   }
 

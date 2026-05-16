@@ -94,18 +94,22 @@ export async function request<T>(path: string, method: Method = "GET", body?: un
   if (!res.ok) {
     const errorBody = await res.json().catch(() => ({}));
     if (res.status === 401) return expireSessionAndThrow();
-    throw new Error((errorBody as { message?: string }).message || "Request failed");
+    const payload = errorBody as { message?: string; errors?: Array<{ msg?: string; path?: string; param?: string }> };
+    const first = payload.errors?.[0];
+    const field = first?.path || first?.param;
+    const detail = first?.msg ? (field ? `${field}: ${first.msg}` : first.msg) : "";
+    throw new Error(detail || payload.message || "Request failed");
   }
   return res.json();
 }
 
-async function upload(path: string, file: File): Promise<any> {
+async function upload(path: string, file: File, fieldName = "avatar", method: Method = "PATCH"): Promise<any> {
   const fd = new FormData();
-  fd.append("avatar", file);
+  fd.append(fieldName, file);
 
   let res: Response;
   try {
-    res = await doFetch(path, "PATCH", fd, true);
+    res = await doFetch(path, method, fd, true);
   } catch {
     throw new Error("Gagal terhubung ke server. Pastikan backend jalan di port 5000.");
   }
@@ -113,7 +117,7 @@ async function upload(path: string, file: File): Promise<any> {
   if (res.status === 401) {
     try {
       await refreshAccessToken();
-      res = await doFetch(path, "PATCH", fd, true);
+      res = await doFetch(path, method, fd, true);
     } catch {
       return expireSessionAndThrow();
     }
@@ -132,9 +136,11 @@ export const api = {
   refresh: () => request<{ token: string }>("/auth/refresh", "POST"),
   logout: () => request<{ message: string }>("/auth/logout", "POST"),
   users: (role?: string) => request(`/users${role ? `?role=${role}` : ""}`),
+  createMember: (payload: unknown) => request("/users/members", "POST", payload),
   updateProfile: (payload: { name: string; avatar_url?: string }) => request("/users/me", "PATCH", payload),
   changePassword: (payload: { current_password: string; new_password: string }) => request("/users/me/password", "PATCH", payload),
   uploadAvatar: (file: File) => upload("/users/me/avatar", file),
+  uploadTaskDocumentation: (file: File) => upload("/tasks/upload-image", file, "image", "POST"),
   tasks: () => request("/tasks"),
   createTask: (payload: unknown) => request("/tasks", "POST", payload),
   updateTask: (taskId: number, payload: unknown) => request(`/tasks/${taskId}`, "PATCH", payload),

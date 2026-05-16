@@ -25,7 +25,10 @@ export function MobileLayout({ user, page, setPage, unread, theme, onToggleTheme
       <main className="content pb-5">
         <header className="topbar mobile-stitch-topbar">
           <div className="inline">
-            <strong className="mobile-brand">TechOps</strong>
+            <div className="mobile-brand-wrap">
+              <img src="/assets/logo-satria.jpg" alt="Satria Piranti Perkasa" className="mobile-brand-logo" />
+              <strong className="mobile-brand">Satria</strong>
+            </div>
           </div>
           <div className="inline">
             <button className="bell" onClick={onToggleTheme} aria-label="Toggle theme">{theme === "light" ? <Moon size={18} /> : <Sun size={18} />}</button>

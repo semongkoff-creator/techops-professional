@@ -19,7 +19,7 @@ function FancySelect({ value, onChange, options }: { value: string; onChange: (v
   }, []);
 
   return (
-    <div className="fancy-select" ref={rootRef}>
+    <div className={`fancy-select${open ? " open" : ""}`} ref={rootRef}>
       <button type="button" className="fancy-select-trigger" onClick={() => setOpen((v) => !v)}>
         <span>{selected?.label}</span>
         <span className="fancy-caret">v</span>
@@ -84,7 +84,7 @@ function DatePickerField({ value, onChange, placeholder = "dd/mm/yyyy" }: { valu
   };
 
   return (
-    <div className="fancy-date" ref={rootRef}>
+    <div className={`fancy-date${open ? " open" : ""}`} ref={rootRef}>
       <button type="button" className="fancy-select-trigger" onClick={() => setOpen((v) => !v)}>
         <span className={value ? "" : "date-placeholder"}>{label}</span>
         <span className="fancy-caret">v</span>
@@ -260,6 +260,13 @@ export function ReportsPage({ isDesktop, user, reports, tasks, supervisors, onDo
     if (cutAt <= 0) return summary.trim();
     return summary.slice(0, cutAt).trim();
   };
+  const extractTaggedValue = (summary: string, label: string) => {
+    const rows = (summary || "").split("\n").map((s) => s.trim());
+    const line = rows.find((s) => s.toLowerCase().startsWith(`${label.toLowerCase()}:`));
+    if (!line) return "-";
+    return line.split(":").slice(1).join(":").trim() || "-";
+  };
+  const taskDocUrlByReport = (r: Report) => tasks.find((t) => t.id === r.task_id)?.documentation_image_url || "";
 
   const normalizeReportDate = (raw: string) => {
     const v = (raw || "").trim().toLowerCase();
@@ -308,7 +315,7 @@ export function ReportsPage({ isDesktop, user, reports, tasks, supervisors, onDo
             <label className="task-label">Nama Mekanik</label>
             <FancySelect value={mekanikName} onChange={setMekanikName} options={[{ value: "", label: "Pilih Nama Mekanik" }, ...mekanikOptions.map((v) => ({ value: v, label: v }))]} />
             <label className="task-label">Tanggal Laporan</label>
-            <input className="form-control" placeholder="Contoh: 9 Mei 2026" value={form.report_date} onChange={(e) => setForm({ ...form, report_date: e.target.value })} />
+            <DatePickerField value={form.report_date} onChange={(v) => setForm({ ...form, report_date: v })} placeholder="dd/mm/yyyy" />
             <label className="task-label">Customer / Nama PT</label>
             <input className="form-control" placeholder="Isi nama customer / PT" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
             <label className="task-label">Kirim Ke</label>
@@ -502,6 +509,13 @@ export function ReportsPage({ isDesktop, user, reports, tasks, supervisors, onDo
                         <td><span className="badge text-bg-light border report-status-badge">{prettyReportStatus(r.report_status)}</span></td>
                         <td style={{ minWidth: "380px", maxWidth: "560px" }}>
                           <div style={{ fontWeight: 600, color: "#243a5d", marginBottom: unitRows.length ? "0.35rem" : "0" }}>{mainSummary}</div>
+                          {taskDocUrlByReport(r) && (
+                            <div style={{ marginBottom: "0.4rem" }}>
+                              <a href={taskDocUrlByReport(r)} target="_blank" rel="noreferrer" style={{ textDecoration: "none", fontSize: ".82rem" }}>
+                                Lihat Dokumentasi Gambar
+                              </a>
+                            </div>
+                          )}
                           {unitRows.length > 0 && (
                             <div style={{ fontSize: ".85rem", color: "#5b6f90", lineHeight: 1.45 }}>
                               {unitRows.slice(0, 2).map((u, idx) => (
@@ -537,6 +551,13 @@ export function ReportsPage({ isDesktop, user, reports, tasks, supervisors, onDo
                       <div>Tanggal: {r.report_date ? new Date(r.report_date).toLocaleDateString("id-ID") : "-"}</div>
                       <div>Progress: {r.progress_percent ?? 0}%</div>
                       <div>Kendala: {r.issue_text || "-"}</div>
+                      {taskDocUrlByReport(r) && (
+                        <div className="mt-2">
+                          <a href={taskDocUrlByReport(r)} target="_blank" rel="noreferrer" className="text-decoration-none">
+                            Lihat Dokumentasi Gambar
+                          </a>
+                        </div>
+                      )}
                       {(() => {
                         const unitRows = parseUnitRowsFromSummary(r.summary_text || "");
                         if (!unitRows.length) return null;
@@ -574,9 +595,22 @@ export function ReportsPage({ isDesktop, user, reports, tasks, supervisors, onDo
                 return (
                   <>
               <h5 className="mb-1">Review Laporan</h5>
-              <div><strong>Task:</strong> {reviewingReport.task_code || tasks.find((t) => t.id === reviewingReport.task_id)?.code || `Task #${reviewingReport.task_id}`}</div>
-              <div><strong>Tanggal:</strong> {reviewingReport.report_date || "-"}</div>
+              <div><strong>Tanggal:</strong> {reviewingReport.report_date ? new Date(reviewingReport.report_date).toLocaleDateString("id-ID") : "-"}</div>
               <div><strong>Progress:</strong> {reviewingReport.progress_percent ?? 0}%</div>
+              <div><strong>Nama Mekanik:</strong> {extractTaggedValue(reviewingReport.summary_text || "", "Nama Mekanik")}</div>
+              <div><strong>Customer / PT:</strong> {extractTaggedValue(reviewingReport.summary_text || "", "Customer / PT")}</div>
+              {taskDocUrlByReport(reviewingReport) && (
+                <>
+                  <div><strong>Dokumentasi Gambar:</strong> <a href={taskDocUrlByReport(reviewingReport)} target="_blank" rel="noreferrer">Buka gambar</a></div>
+                  <a href={taskDocUrlByReport(reviewingReport)} target="_blank" rel="noreferrer" className="text-decoration-none">
+                    <img
+                      src={taskDocUrlByReport(reviewingReport)}
+                      alt="Dokumentasi"
+                      style={{ width: "100%", maxHeight: "200px", objectFit: "cover", borderRadius: "10px", border: "1px solid #dbe3f3" }}
+                    />
+                  </a>
+                </>
+              )}
               {unitRowsFromSummary.length > 0 && (
                 <div className="table-responsive">
                   <table className="table table-sm table-bordered align-middle mb-1">
@@ -589,7 +623,6 @@ export function ReportsPage({ isDesktop, user, reports, tasks, supervisors, onDo
                         <th>Tipe</th>
                         <th>Trouble</th>
                         <th>Action</th>
-                        <th>Sparepart</th>
                         <th>Hasil</th>
                       </tr>
                     </thead>
@@ -603,7 +636,6 @@ export function ReportsPage({ isDesktop, user, reports, tasks, supervisors, onDo
                           <td>{row.tipe}</td>
                           <td>{row.trouble}</td>
                           <td>{row.action}</td>
-                          <td>{row.sparepart}</td>
                           <td>{row.hasil}</td>
                         </tr>
                       ))}
@@ -611,10 +643,10 @@ export function ReportsPage({ isDesktop, user, reports, tasks, supervisors, onDo
                   </table>
                 </div>
               )}
-              <div><strong>Ringkasan & Detail Unit:</strong></div>
-              <pre className="mb-2 p-2 border rounded bg-light" style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", maxHeight: "320px", overflow: "auto" }}>
-                {reviewingReport.summary_text || "-"}
-              </pre>
+              <div><strong>Ringkasan:</strong></div>
+              <div className="mb-2 p-2 border rounded bg-light" style={{ whiteSpace: "pre-wrap", maxHeight: "180px", overflow: "auto" }}>
+                {extractMainSummary(reviewingReport.summary_text || "-")}
+              </div>
               <div className="d-flex gap-2 justify-content-end">
                 <button type="button" className="btn btn-light" onClick={() => setReviewingReport(null)}>Tutup</button>
                 <button

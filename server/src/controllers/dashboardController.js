@@ -1,6 +1,33 @@
 import { pool } from "../db/pool.js";
 import ExcelJS from "exceljs";
 import PDFDocument from "pdfkit";
+import fs from "fs";
+import path from "path";
+import XLSX from "xlsx";
+
+function loadLogoBuffer() {
+  const candidates = [
+    path.resolve(process.cwd(), "public/assets/logo-satria.jpg"),
+    path.resolve(process.cwd(), "../public/assets/logo-satria.jpg"),
+    path.resolve(process.cwd(), "assets/logo-satria.jpg"),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return fs.readFileSync(p);
+  }
+  return null;
+}
+
+function loadReportTemplatePath() {
+  const candidates = [
+    path.resolve(process.cwd(), "server/assets/Laporan-Teknisi-Formatted.xlsx"),
+    path.resolve(process.cwd(), "assets/Laporan-Teknisi-Formatted.xlsx"),
+    path.resolve(process.cwd(), "../server/assets/Laporan-Teknisi-Formatted.xlsx"),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
 
 export async function dashboardSummary(req, res) {
   const [taskStats] = await pool.execute(
@@ -58,6 +85,7 @@ export async function exportData(req, res) {
     t.status,
     t.due_date,
     t.completion_percent,
+    t.documentation_image_url,
     st.name AS staff_name,
     te.name AS technician_name
   FROM tasks t
@@ -74,6 +102,7 @@ export async function exportData(req, res) {
     r.progress_percent AS completion_percent,
     r.issue_text,
     r.summary_text,
+    t.documentation_image_url,
     r.report_status AS status,
     st.name AS staff_name,
     te.name AS technician_name
@@ -164,6 +193,7 @@ export async function exportData(req, res) {
     const aging = due ? Math.max(0, Math.ceil((due.getTime() - Date.now()) / 86400000)) : 0;
     return {
       no: idx + 1,
+      code: r.code || "-",
       tgl: selectedSource === "reports" ? reportDate : plan,
       job: selectedSource === "reports" ? "LAPORAN" : String(r.priority || "-").toUpperCase(),
       detail: r.title || "-",
@@ -177,8 +207,58 @@ export async function exportData(req, res) {
       mekanik: r.technician_name || "-",
       final: selectedSource === "reports" ? "CLOSE" : ["completed", "closed"].includes(String(r.status || "")) ? "CLOSE" : "OPEN",
       keterangan: selectedSource === "reports" ? `${r.issue_text || "-"}\n${r.summary_text || "-"}` : r.description || "-",
+      dokumentasi: r.documentation_image_url || "-",
+      summary_text: r.summary_text || "",
+      issue_text: r.issue_text || "",
     };
   });
+  const parseSummaryBlock = (summary) => {
+    const text = String(summary || "");
+    const lines = text.split("\n").map((s) => s.trim()).filter(Boolean);
+    const take = (label) => {
+      const found = lines.find((s) => s.toLowerCase().startsWith(`${label.toLowerCase()}:`));
+      return found ? found.split(":").slice(1).join(":").trim() || "-" : "-";
+    };
+    const unitLines = lines.filter((s) => /^\d+\.\s+Kode Unit:/i.test(s));
+    const units = unitLines.map((line) => {
+      const parts = line.split("|").map((p) => p.trim());
+      const first = parts.shift() || "";
+      const unit_code = first.replace(/^\d+\.\s+Kode Unit:\s*/i, "").trim() || "-";
+      const get = (label) => parts.find((p) => p.toLowerCase().startsWith(label.toLowerCase()))?.split(":").slice(1).join(":").trim() || "-";
+      return {
+        unit_code,
+        hour_meter: get("Hour Meter"),
+        merk: get("Merk"),
+        tipe: get("Tipe"),
+        trouble: get("Trouble"),
+        action: get("Action"),
+        sparepart: get("Sparepart"),
+        hasil: get("Hasil"),
+      };
+    });
+    const ringkasan = text.includes("Nama Mekanik:") ? text.slice(0, text.indexOf("Nama Mekanik:")).trim() : text.trim();
+    return {
+      nama_mekanik: take("Nama Mekanik"),
+      customer_pt: take("Customer / PT"),
+      ringkasan: ringkasan || "-",
+      units,
+    };
+  };
+  const reportExpandedRows = selectedSource === "reports"
+    ? rowsView.flatMap((row) => {
+      const parsed = parseSummaryBlock(row.summary_text);
+      const units = parsed.units.length ? parsed.units : [{
+        unit_code: "-", hour_meter: "-", merk: "-", tipe: "-", trouble: "-", action: "-", sparepart: "-", hasil: String(row.status || "-"),
+      }];
+      return units.map((u) => ({
+        ...row,
+        parsed,
+        unit: u,
+        export_customer: parsed.customer_pt !== "-" ? parsed.customer_pt : (row.customer || "-"),
+        export_mekanik: parsed.nama_mekanik !== "-" ? parsed.nama_mekanik : (row.mekanik || "-"),
+      }));
+    })
+    : [];
   const filenameBase = `techops-report-${from || "all"}-${to || "all"}`;
 
   if (selectedFormat === "pdf") {
@@ -187,18 +267,41 @@ export async function exportData(req, res) {
 
     const doc = new PDFDocument({ margin: 28, size: "A4", layout: "landscape" });
     doc.pipe(res);
-    const startX = 18;
-    let y = 26;
-    doc.font("Helvetica-Bold").fontSize(11).text("UNIT", startX, y);
-    doc.font("Helvetica-Bold").fontSize(18).text("SATRIA PIRANTI PERKASA", startX + 48, y - 2);
-    y += 22;
+    const startX = 14;
+    let y = 16;
+    const logoBuffer = loadLogoBuffer();
+    if (logoBuffer) {
+      try {
+        doc.image(logoBuffer, startX + 92, y - 2, { fit: [210, 48], align: "left", valign: "center" });
+      } catch {
+        // ignore logo failure, keep export running
+      }
+    }
+    doc.font("Helvetica-Bold").fontSize(10).text("UNIT", startX, y + 10);
+    y += 30;
     doc.font("Helvetica").fontSize(9).text(`Filter: ${from || "-"} s/d ${to || "-"} | Teknisi: ${technician_id || "Semua"}`, startX, y);
-    y += 18;
-    doc.font("Helvetica-Bold").fontSize(11).text("PCS", 0, y, { align: "center" });
+    y += 14;
+    doc.rect(startX, y, 810, 14).fill("#f7d9dd");
+    doc.fillColor("#000").font("Helvetica-Bold").fontSize(10).text("PCS", startX, y + 3, { width: 805, align: "center" });
     y += 16;
 
-    const cols = [
+    const cols = selectedSource === "reports" ? [
       { key: "no", label: "No", w: 16 },
+      { key: "tgl", label: "Tgl", w: 46 },
+      { key: "job", label: "Job", w: 34 },
+      { key: "code", label: "Task ID", w: 58 },
+      { key: "customer", label: "Customer", w: 68 },
+      { key: "mekanik", label: "Mekanik", w: 56 },
+      { key: "unit_code", label: "Kode Unit", w: 54 },
+      { key: "hour_meter", label: "Hour Meter", w: 50 },
+      { key: "merk", label: "Merk", w: 44 },
+      { key: "tipe", label: "Tipe", w: 44 },
+      { key: "trouble", label: "Trouble", w: 62 },
+      { key: "action", label: "Action", w: 62 },
+      { key: "sparepart", label: "Sparepart", w: 54 },
+      { key: "hasil", label: "Hasil", w: 62 },
+    ] : [
+      { key: "no", label: "No", w: 18 },
       { key: "tgl", label: "Tgl", w: 46 },
       { key: "job", label: "Job", w: 34 },
       { key: "detail", label: "Detail Job", w: 82 },
@@ -211,12 +314,13 @@ export async function exportData(req, res) {
       { key: "staff", label: "Staff", w: 50 },
       { key: "mekanik", label: "Mekanik", w: 50 },
       { key: "final", label: "Final", w: 30 },
-      { key: "keterangan", label: "Keterangan", w: 56 },
+      { key: "keterangan", label: "Keterangan", w: 52 },
+      { key: "dokumentasi", label: "Dokumentasi", w: 62 },
     ];
-    const baseRowH = 13;
+    const baseRowH = selectedSource === "reports" ? 13 : 14;
     const drawHeader = () => {
       let x = startX;
-      doc.font("Helvetica-Bold").fontSize(6.1);
+      doc.font("Helvetica-Bold").fontSize(selectedSource === "reports" ? 6.1 : 6.6);
       cols.forEach((c) => {
         doc.rect(x, y, c.w, baseRowH).stroke("#6b7280");
         doc.text(c.label, x + 1, y + 3, { width: c.w - 2, align: "center" });
@@ -226,33 +330,41 @@ export async function exportData(req, res) {
     };
     drawHeader();
 
-    if (!rowsView.length) {
+    const pdfRows = selectedSource === "reports"
+      ? reportExpandedRows.map((r, idx) => ({
+        no: idx + 1,
+        tgl: r.tgl,
+        job: r.job,
+        code: r.code || "-",
+        customer: r.export_customer || "-",
+        mekanik: r.export_mekanik || "-",
+        unit_code: r.unit.unit_code || "-",
+        hour_meter: r.unit.hour_meter || "-",
+        merk: r.unit.merk || "-",
+        tipe: r.unit.tipe || "-",
+        trouble: r.unit.trouble || "-",
+        action: r.unit.action || "-",
+        sparepart: r.unit.sparepart || "-",
+        hasil: r.unit.hasil || "-",
+      }))
+      : rowsView;
+    if (!pdfRows.length) {
       doc.fontSize(11).fillColor("#c62828").text("Tidak ada data laporan pada filter ini.", startX, y + 6);
       doc.fillColor("#000000");
       doc.moveDown(0.6);
     } else {
-      rowsView.forEach((r) => {
-        const vals = [
-          String(r.no),
-          r.tgl,
-          r.job,
-          r.detail,
-          r.customer,
-          r.lokasi,
-          r.plan,
-          r.aging,
-          r.status,
-          `${r.progress}%`,
-          r.staff,
-          r.mekanik,
-          r.final,
-          r.keterangan,
-        ];
-        doc.font("Helvetica").fontSize(5.9);
-        const keteranganText = vals[14] || "-";
-        const keteranganCol = cols[14];
-        const keteranganHeight = doc.heightOfString(keteranganText, { width: keteranganCol.w - 2, align: "left" });
-        const rowH = Math.max(baseRowH, Math.ceil(keteranganHeight) + 4);
+      pdfRows.forEach((r) => {
+        const vals = cols.map((c) => {
+          const v = r[c.key];
+          if (c.key === "progress") return `${Number(v || 0)}%`;
+          return String(v ?? "-");
+        });
+        doc.font("Helvetica").fontSize(selectedSource === "reports" ? 5.9 : 6.2);
+        const wrapIndex = selectedSource === "reports" ? cols.findIndex((c) => c.key === "trouble") : 13;
+        const wrapText = vals[wrapIndex] || "-";
+        const wrapCol = cols[wrapIndex];
+        const wrapHeight = doc.heightOfString(wrapText, { width: wrapCol.w - 2, align: "left" });
+        const rowH = Math.max(baseRowH, Math.ceil(wrapHeight) + 4);
         if (y + rowH > doc.page.height - 24) {
           doc.addPage({ size: "A4", layout: "landscape", margin: 28 });
           y = 28;
@@ -261,7 +373,7 @@ export async function exportData(req, res) {
         let x = startX;
         cols.forEach((c, i) => {
           doc.rect(x, y, c.w, rowH).stroke("#9ca3af");
-          if (i === 14) {
+          if (i === wrapIndex) {
             doc.text(vals[i], x + 1, y + 3, {
               width: c.w - 2,
               height: rowH - 2,
@@ -272,7 +384,7 @@ export async function exportData(req, res) {
             doc.text(vals[i], x + 1, y + 3, {
               width: c.w - 2,
               height: rowH - 2,
-              align: i === 0 || i === 7 || i === 9 || i === 13 ? "center" : "left",
+              align: i === 0 || i === 7 || i === 9 || i === 12 ? "center" : "left",
               ellipsis: true,
               lineBreak: false,
             });
@@ -286,27 +398,172 @@ export async function exportData(req, res) {
     return;
   }
 
+  if ((selectedFormat === "xlsx" || selectedFormat === "xls") && selectedSource === "reports") {
+    const templatePath = loadReportTemplatePath();
+    if (!templatePath) {
+      return res.status(500).json({ message: "Template laporan selesai tidak ditemukan." });
+    }
+    try {
+      const wbTpl = XLSX.readFile(templatePath, { cellStyles: true });
+      const ws = wbTpl.Sheets[wbTpl.SheetNames[0]];
+      const decode = XLSX.utils.decode_range(ws["!ref"] || "A1:M15");
+      for (let r = 5; r <= decode.e.r + 1; r += 1) {
+        for (let c = 1; c <= 13; c += 1) {
+          const addr = XLSX.utils.encode_cell({ r: r - 1, c: c - 1 });
+          if (ws[addr]) delete ws[addr].v;
+          if (ws[addr]) delete ws[addr].w;
+          if (ws[addr]) ws[addr].t = "s";
+        }
+      }
+
+      const fromText = from || "-";
+      const toText = to || "-";
+      ws.K2 = { t: "s", v: `Periode: ${fromText} s/d ${toText}` };
+
+      const parseSummaryBlock = (summary) => {
+        const text = String(summary || "");
+        const lines = text.split("\n").map((s) => s.trim()).filter(Boolean);
+        const take = (label) => {
+          const found = lines.find((s) => s.toLowerCase().startsWith(`${label.toLowerCase()}:`));
+          return found ? found.split(":").slice(1).join(":").trim() || "-" : "-";
+        };
+        const unitLines = lines.filter((s) => /^\d+\.\s+Kode Unit:/i.test(s));
+        const units = unitLines.map((line) => {
+          const parts = line.split("|").map((p) => p.trim());
+          const first = parts.shift() || "";
+          const unit_code = first.replace(/^\d+\.\s+Kode Unit:\s*/i, "").trim() || "-";
+          const get = (label) => parts.find((p) => p.toLowerCase().startsWith(label.toLowerCase()))?.split(":").slice(1).join(":").trim() || "-";
+          return {
+            unit_code,
+            hour_meter: get("Hour Meter"),
+            merk: get("Merk"),
+            tipe: get("Tipe"),
+            trouble: get("Trouble"),
+            action: get("Action"),
+            sparepart: get("Sparepart"),
+            hasil: get("Hasil"),
+          };
+        });
+        const ringkasan = text.includes("Nama Mekanik:") ? text.slice(0, text.indexOf("Nama Mekanik:")).trim() : text.trim();
+        return {
+          nama_mekanik: take("Nama Mekanik"),
+          customer_pt: take("Customer / PT"),
+          ringkasan: ringkasan || "-",
+          units,
+        };
+      };
+
+      const expandedRows = [];
+      rowsView.forEach((row) => {
+        const parsed = parseSummaryBlock(row.summary_text);
+        const units = parsed.units.length ? parsed.units : [{
+          unit_code: "-", hour_meter: "-", merk: "-", tipe: "-", trouble: "-", action: "-", sparepart: "-", hasil: String(row.status || "-"),
+        }];
+        units.forEach((u) => {
+          expandedRows.push({
+            ...row,
+            parsed,
+            unit: u,
+            export_customer: parsed.customer_pt !== "-" ? parsed.customer_pt : (row.customer || "-"),
+            export_mekanik: parsed.nama_mekanik !== "-" ? parsed.nama_mekanik : (row.mekanik || "-"),
+          });
+        });
+      });
+
+      const byCustomer = new Map();
+      expandedRows.forEach((row) => {
+        const key = row.export_customer || "-";
+        if (!byCustomer.has(key)) byCustomer.set(key, []);
+        byCustomer.get(key).push(row);
+      });
+      const totalTask = new Set(rowsView.map((r) => r.code)).size;
+      ws.A3 = { t: "s", v: `Total Task:  ${totalTask}` };
+      ws.C3 = { t: "s", v: `Total Unit:  ${expandedRows.length}` };
+      ws.E3 = { t: "s", v: `Total PT:  ${byCustomer.size}` };
+      const closed = expandedRows.filter((r) => String(r.unit.hasil || "").toUpperCase().includes("CLOSED")).length;
+      ws.G3 = { t: "s", v: `Closed:  ${closed}` };
+      ws.I3 = { t: "s", v: `Waiting / Progress:  ${Math.max(0, expandedRows.length - closed)}` };
+
+      let rowCursor = 5;
+      let no = 1;
+      for (const [customer, list] of byCustomer.entries()) {
+        ws[`A${rowCursor}`] = { t: "s", v: `  ${customer}   ·   ${new Set(list.map((x) => x.code)).size} task   ·   ${list.length} unit` };
+        rowCursor += 1;
+        list.forEach((r) => {
+          ws[`A${rowCursor}`] = { t: "n", v: no++ };
+          ws[`B${rowCursor}`] = { t: "s", v: r.code || "-" };
+          ws[`C${rowCursor}`] = { t: "s", v: r.tgl || "-" };
+          ws[`D${rowCursor}`] = { t: "s", v: customer };
+          ws[`E${rowCursor}`] = { t: "s", v: r.export_mekanik || "-" };
+          ws[`F${rowCursor}`] = { t: "s", v: r.unit.unit_code || "-" };
+          ws[`G${rowCursor}`] = { t: "s", v: r.unit.hour_meter || "-" };
+          ws[`H${rowCursor}`] = { t: "s", v: r.unit.merk || "-" };
+          ws[`I${rowCursor}`] = { t: "s", v: r.unit.tipe || "-" };
+          ws[`J${rowCursor}`] = { t: "s", v: r.unit.trouble || "-" };
+          ws[`K${rowCursor}`] = { t: "s", v: r.unit.action || "-" };
+          ws[`L${rowCursor}`] = { t: "s", v: r.unit.sparepart || "-" };
+          ws[`M${rowCursor}`] = { t: "s", v: r.unit.hasil || "-" };
+          rowCursor += 1;
+        });
+      }
+
+      const footerRow = rowCursor + 1;
+      ws[`A${footerRow}`] = { t: "s", v: "Keterangan:" };
+      ws[`D${footerRow}`] = { t: "s", v: "Closed" };
+      ws[`F${footerRow}`] = { t: "s", v: "Waiting sparepart" };
+      ws[`H${footerRow}`] = { t: "s", v: "On progress" };
+      ws["!ref"] = `A1:M${footerRow}`;
+
+      const out = XLSX.write(wbTpl, { type: "buffer", bookType: "xlsx" });
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename=\"${filenameBase}.xlsx\"`);
+      res.end(out);
+      return;
+    } catch {
+      return res.status(500).json({ message: "Gagal memproses template laporan selesai." });
+    }
+  }
+
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Job Activity");
-  ws.mergeCells("C2:D2");
-  ws.getCell("C2").value = "UNIT";
-  ws.getCell("C2").font = { bold: true };
-  ws.mergeCells("E2:H3");
-  ws.getCell("E2").value = "SATRIA PIRANTI PERKASA";
-  ws.getCell("E2").font = { bold: true, size: 16 };
-  ws.mergeCells("I5:K5");
-  ws.getCell("I5").value = "PCS";
-  ws.getCell("I5").font = { bold: true };
-  ws.getCell("I5").alignment = { horizontal: "center" };
+  const logoBuffer = loadLogoBuffer();
+  if (logoBuffer) {
+    try {
+      const logoId = wb.addImage({ buffer: logoBuffer, extension: "jpeg" });
+      ws.addImage(logoId, {
+        tl: { col: 2.7, row: 6.1 },
+        ext: { width: 220, height: 52 },
+      });
+    } catch {
+      // ignore logo failure, keep export running
+    }
+  }
+  ws.mergeCells("B7:C7");
+  ws.getCell("B7").value = "UNIT";
+  ws.getCell("B7").font = { bold: true, size: 11 };
+  ws.getCell("B7").alignment = { horizontal: "center", vertical: "middle" };
+  ws.mergeCells("A10:N10");
+  ws.getCell("A10").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF7D9DD" } };
+  ws.getCell("A10").value = "PCS";
+  ws.getCell("A10").font = { bold: true, size: 11 };
+  ws.getCell("A10").alignment = { horizontal: "center", vertical: "middle" };
+  ws.getRow(7).height = 24;
+  ws.getRow(10).height = 20;
 
-  const headerRow = 7;
-  const headers = ["No", "Tgl", "Job", "Detail Job", "Customer", "Lokasi", "Plan", "Aging", "Status", "Staff", "Mekanik", "Final", "Keterangan"];
+  const headerRow = 11;
+  const headers = ["No", "Tgl", "Job", "Detail Job", "Customer", "Lokasi", "Plan", "Aging", "Status", "Staff", "Mekanik", "Final", "Keterangan", "Dokumentasi"];
   ws.getRow(headerRow).values = [, ...headers];
   ws.getRow(headerRow).font = { bold: true };
   ws.getRow(headerRow).alignment = { horizontal: "center", vertical: "middle" };
-  ws.getRow(headerRow).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF7D9DD" } };
+  ws.getRow(headerRow).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEDEDED" } };
+  ws.getRow(headerRow).height = 24;
+  ws.autoFilter = {
+    from: { row: headerRow, column: 1 },
+    to: { row: headerRow, column: headers.length },
+  };
+  ws.views = [{ state: "frozen", ySplit: headerRow }];
 
-  const widths = [6, 14, 12, 28, 20, 16, 14, 8, 14, 18, 16, 10, 18];
+  const widths = [5, 12, 10, 24, 16, 12, 12, 7, 12, 14, 13, 8, 14, 16];
   widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
   let rowIdx = headerRow + 1;
@@ -325,7 +582,9 @@ export async function exportData(req, res) {
       r.mekanik,
       r.final,
       r.keterangan,
+      r.dokumentasi,
     ];
+    ws.getRow(rowIdx).height = 22;
     rowIdx += 1;
   });
 
@@ -339,6 +598,9 @@ export async function exportData(req, res) {
         right: { style: "thin", color: { argb: "FFBFC5D2" } },
       };
       if (r > headerRow) cell.alignment = { vertical: "middle", horizontal: c === 1 || c === 8 ? "center" : "left" };
+      if (r > headerRow && (c === 4 || c === 13 || c === 14)) {
+        cell.alignment = { ...cell.alignment, wrapText: true };
+      }
     }
   }
 
