@@ -7,6 +7,10 @@ import path from "path";
 const taskStatuses = ["draft_to_supervisor", "assigned_to_technician", "in_progress", "completed", "closed"];
 
 function fileExtFromMime(mime) {
+  if (mime === "video/mp4") return "mp4";
+  if (mime === "video/webm") return "webm";
+  if (mime === "video/quicktime") return "mov";
+  if (mime === "video/ogg") return "ogg";
   if (mime === "image/png") return "png";
   if (mime === "image/webp") return "webp";
   return "jpg";
@@ -15,11 +19,14 @@ function fileExtFromMime(mime) {
 async function uploadTaskImageToSupabase({ file, userId }) {
   const supabaseUrl = process.env.SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const bucket = process.env.SUPABASE_STORAGE_BUCKET || "avatars";
+  const bucket = process.env.SUPABASE_TASK_MEDIA_BUCKET || process.env.SUPABASE_STORAGE_BUCKET || "task-media";
   if (!supabaseUrl || !serviceRoleKey) return null;
 
   const ext = fileExtFromMime(file.mimetype);
-  const objectPath = `tasks/${userId}/doc-${Date.now()}.${ext}`;
+  const taskIdRaw = Number(file?.taskId || 0);
+  const taskId = Number.isFinite(taskIdRaw) && taskIdRaw > 0 ? taskIdRaw : "draft";
+  const mediaFolder = String(file.mimetype || "").startsWith("video/") ? "videos" : "images";
+  const objectPath = `task-media/${taskId}/${mediaFolder}/${userId}-${Date.now()}.${ext}`;
   const endpoint = `${supabaseUrl.replace(/\/$/, "")}/storage/v1/object/${bucket}/${objectPath}`;
 
   const res = await fetch(endpoint, {
@@ -57,10 +64,17 @@ function saveTaskImageToLocal({ file, userId }) {
 
 export async function uploadTaskDocumentationImage(req, res) {
   if (!req.file) return res.status(400).json({ message: "File dokumentasi wajib dipilih" });
+  const taskId = Number(req.body?.task_id || 0);
+  if (taskId > 0) {
+    const [rows] = await pool.execute("SELECT id, technician_id FROM tasks WHERE id=? LIMIT 1", [taskId]);
+    const task = rows[0];
+    if (!task) return res.status(404).json({ message: "Task tidak ditemukan." });
+    if (Number(task.technician_id) !== Number(req.user.id)) return res.status(403).json({ message: "Forbidden" });
+  }
 
   let imagePath = null;
   try {
-    imagePath = await uploadTaskImageToSupabase({ file: req.file, userId: req.user.id });
+    imagePath = await uploadTaskImageToSupabase({ file: { ...req.file, taskId }, userId: req.user.id });
   } catch (err) {
     return res.status(500).json({ message: err.message || "Gagal upload dokumentasi" });
   }
@@ -78,19 +92,23 @@ export async function createTask(req, res) {
   const isSupervisor = req.user.role === "supervisor";
   const isStaff = req.user.role === "staff" || req.user.role === "atasan";
   const isTechnician = req.user.role === "teknisi" || req.user.role === "technician";
-  let selectedSupervisorId = isSupervisor ? req.user.id : Number(supervisor_id);
-  let selectedStaffId = isSupervisor
-    ? (staff_id ? Number(staff_id) : null)
-    : isStaff
-      ? (staff_id ? Number(staff_id) : null)
-      : (staff_id ? Number(staff_id) : null);
+  let selectedSupervisorId = isSupervisor ? req.user.id : (supervisor_id ? Number(supervisor_id) : null);
+  let selectedStaffId = isSupervisor ? (staff_id ? Number(staff_id) : null) : isStaff ? req.user.id : (staff_id ? Number(staff_id) : null);
   const selectedTechnicianId = isTechnician ? req.user.id : (technician_id ? Number(technician_id) : null);
   const pct = Number.isFinite(Number(completion_percent)) ? Number(completion_percent) : 0;
   const initialStatus = selectedTechnicianId ? "assigned_to_technician" : "draft_to_supervisor";
 
-  if (!selectedSupervisorId && isTechnician) {
-    const [fallbackSpvRows] = await pool.execute("SELECT id FROM users WHERE role='supervisor' AND is_active=TRUE ORDER BY id ASC LIMIT 1");
-    selectedSupervisorId = Number(fallbackSpvRows?.[0]?.id || 0);
+  if (isStaff && !selectedSupervisorId) {
+    return res.status(400).json({ message: "Supervisor wajib diisi oleh Staff." });
+  }
+  if (isStaff && !selectedTechnicianId) {
+    return res.status(400).json({ message: "Teknisi wajib diisi oleh Staff." });
+  }
+  if (isTechnician && !selectedSupervisorId) {
+    return res.status(400).json({ message: "Supervisor wajib diisi oleh Teknisi." });
+  }
+  if (isTechnician && !selectedStaffId) {
+    return res.status(400).json({ message: "Staff wajib diisi oleh Teknisi." });
   }
   if (!selectedSupervisorId) return res.status(400).json({ message: "Supervisor wajib diisi." });
 
@@ -104,11 +122,13 @@ export async function createTask(req, res) {
       [selectedStaffId],
     );
     const staffUser = staffRows[0];
-    if (!staffUser) selectedStaffId = null;
+    if (!staffUser || !["staff", "atasan"].includes(String(staffUser.role))) {
+      return res.status(400).json({ message: "Staff tidak valid" });
+    }
   }
 
   if (selectedTechnicianId) {
-    const [techRows] = await pool.execute("SELECT id FROM users WHERE id=? AND role='teknisi' LIMIT 1", [selectedTechnicianId]);
+    const [techRows] = await pool.execute("SELECT id FROM users WHERE id=? AND role IN ('teknisi','technician') LIMIT 1", [selectedTechnicianId]);
     if (!techRows[0]) return res.status(400).json({ message: "Teknisi tidak valid" });
   }
 
@@ -142,7 +162,7 @@ export async function listTasks(req, res) {
     sql += " AND supervisor_id=?";
     params.push(req.user.id);
   }
-  if (req.user.role === "teknisi") {
+  if (req.user.role === "teknisi" || req.user.role === "technician") {
     sql += " AND (technician_id=? OR created_by_atasan_id=?)";
     params.push(req.user.id, req.user.id);
   }
@@ -191,7 +211,7 @@ export async function updateTaskStatus(req, res) {
   const task = rows[0];
   if (!task) return res.status(404).json({ message: "Task not found" });
 
-  if (req.user.role === "teknisi" && Number(task.technician_id) !== Number(req.user.id)) return res.status(403).json({ message: "Forbidden" });
+  if ((req.user.role === "teknisi" || req.user.role === "technician") && Number(task.technician_id) !== Number(req.user.id)) return res.status(403).json({ message: "Forbidden" });
   if (req.user.role === "supervisor" && Number(task.supervisor_id) !== Number(req.user.id)) return res.status(403).json({ message: "Forbidden" });
 
   const oldStatus = task.status;

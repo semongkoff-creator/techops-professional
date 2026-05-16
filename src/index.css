@@ -417,6 +417,17 @@ table { width: 100%; min-width: 780px; }
 .task-done { color: #15803d; font-weight: 700; font-size: .95rem; }
 .task-modal-backdrop { position: fixed; inset: 0; background: rgba(8, 16, 32, .5); z-index: 60; display: grid; align-items: end; padding: .8rem; }
 .task-modal { border-radius: 18px; max-width: 420px; margin: 0 auto; width: 100%; max-height: 88vh; overflow-y: auto; overflow-x: hidden; }
+.task-modal .card-body {
+  overflow: visible !important;
+}
+.task-modal .fancy-select.open,
+.task-modal .fancy-date.open {
+  z-index: 6500 !important;
+}
+.task-modal .fancy-select-menu,
+.task-modal .fancy-date-menu {
+  z-index: 6600 !important;
+}
 .task-confirm-backdrop { align-items: center; justify-items: center; padding: 1rem; }
 .task-confirm-modal { width: min(92vw, 420px); border-radius: 18px; box-shadow: 0 18px 45px rgba(7, 23, 49, .28); border: 1px solid #d9e2f1; }
 .task-confirm-modal h5 { margin: 0; color: #143462; font-weight: 800; }
@@ -1834,5 +1845,44 @@ table { width: 100%; min-width: 780px; }
   background: #ff7a45 !important;
   border-color: #ff7a45 !important;
   color: #fff !important;
+}
+
+/* Final fix: dropdown/date must not sink behind modal/card */
+.task-modal-backdrop,
+.task-modal,
+.task-form,
+.report-form {
+  overflow: visible !important;
+}
+.task-modal {
+  position: relative;
+  isolation: isolate;
+}
+.task-modal > .card-body,
+.task-form > .card-body,
+.report-form {
+  position: relative;
+  overflow-y: auto !important;
+  overflow-x: visible !important;
+}
+.task-modal .fancy-select,
+.task-modal .fancy-date,
+.report-form .fancy-select,
+.report-form .fancy-date {
+  position: relative !important;
+  z-index: 20 !important;
+}
+.task-modal .fancy-select.open,
+.task-modal .fancy-date.open,
+.report-form .fancy-select.open,
+.report-form .fancy-date.open {
+  z-index: 9997 !important;
+}
+.task-modal .fancy-select-menu,
+.task-modal .fancy-date-menu,
+.report-form .fancy-select-menu,
+.report-form .fancy-date-menu {
+  z-index: 9998 !important;
+  pointer-events: auto !important;
 }
 

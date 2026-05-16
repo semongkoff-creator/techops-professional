@@ -11,9 +11,11 @@ import { TasksPage } from "./pages/TasksPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { AnalyticsPage, NotificationsPage } from "./pages/SupportPages";
 import { ExportPage, ProfilePage } from "./pages/SettingsPages";
+import { useIsDesktop } from "./hooks/useIsDesktop";
 
 export default function App() {
   const { user, setUser, loading, login, logout } = useAuth();
+  const isDesktopViewport = useIsDesktop();
   const [page, setPage] = useState<Page>("dashboard");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
@@ -76,9 +78,12 @@ export default function App() {
     if (ds.status === "fulfilled") setSummary(ds.value as { taskStats: Array<{ status: string; total: number }>; reportStats: Array<{ report_status: string; total: number }> });
 
     const usersFallback = allUsers.status === "fulfilled" ? (allUsers.value as User[]) : [];
-    const supervisorsData = spv.status === "fulfilled"
+    const supervisorsDataRaw = spv.status === "fulfilled"
       ? (spv.value as User[])
-      : usersFallback.filter((u) => u.role === "supervisor");
+      : [];
+    const supervisorsDataFromApi = supervisorsDataRaw.filter((u) => String(u.role || "").toLowerCase() === "supervisor");
+    const supervisorsDataFallback = usersFallback.filter((u) => String(u.role || "").toLowerCase() === "supervisor");
+    const supervisorsData = supervisorsDataFromApi.length > 0 ? supervisorsDataFromApi : supervisorsDataFallback;
     const techniciansData = tek.status === "fulfilled"
       ? (tek.value as User[])
       : usersFallback.filter((u) => u.role === "teknisi" || u.role === "technician");
@@ -175,8 +180,7 @@ export default function App() {
 
   if (loading) return <div className="center">Loading...</div>;
   if (!user) return <LoginPage onLogin={login} />;
-  const rolePrefersDesktop = user.role === "supervisor" || user.role === "atasan" || user.role === "staff";
-  const isDesktop = rolePrefersDesktop ? true : false;
+  const isDesktop = isDesktopViewport;
 
   const content = (() => {
     if (page === "dashboard") return <DashboardPage isDesktop={isDesktop} user={user} summary={summary} tasks={tasks} reports={reports} technicians={technicians} onlineTechIds={onlineTechIds} onJump={setPage} />;

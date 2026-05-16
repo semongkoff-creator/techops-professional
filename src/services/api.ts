@@ -103,9 +103,14 @@ export async function request<T>(path: string, method: Method = "GET", body?: un
   return res.json();
 }
 
-async function upload(path: string, file: File, fieldName = "avatar", method: Method = "PATCH"): Promise<any> {
+async function upload(path: string, file: File, fieldName = "avatar", method: Method = "PATCH", extraFields?: Record<string, string>): Promise<any> {
   const fd = new FormData();
   fd.append(fieldName, file);
+  if (extraFields) {
+    Object.entries(extraFields).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") fd.append(k, v);
+    });
+  }
 
   let res: Response;
   try {
@@ -140,7 +145,73 @@ export const api = {
   updateProfile: (payload: { name: string; avatar_url?: string }) => request("/users/me", "PATCH", payload),
   changePassword: (payload: { current_password: string; new_password: string }) => request("/users/me/password", "PATCH", payload),
   uploadAvatar: (file: File) => upload("/users/me/avatar", file),
-  uploadTaskDocumentation: (file: File) => upload("/tasks/upload-image", file, "image", "POST"),
+  uploadTaskDocumentation: (file: File, taskId?: number) => upload("/tasks/upload-media", file, "media", "POST", taskId ? { task_id: String(taskId) } : undefined),
+  uploadTaskDocumentationWithProgress: (
+    file: File,
+    taskId: number | undefined,
+    onProgress: (percent: number) => void,
+    onRetry?: (attempt: number) => void,
+  ) => new Promise<{ documentation_image_url?: string }>((resolve, reject) => {
+    const maxAttempts = 2;
+    let attempt = 0;
+
+    const runAttempt = () => {
+      attempt += 1;
+      const fd = new FormData();
+      fd.append("media", file);
+      if (taskId) fd.append("task_id", String(taskId));
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${API_BASE}/tasks/upload-media`, true);
+      const token = getToken();
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      xhr.setRequestHeader("x-device-id", getDeviceId());
+      xhr.withCredentials = true;
+      xhr.upload.onprogress = (e) => {
+        if (!e.lengthComputable) return;
+        const pct = Math.max(0, Math.min(100, Math.round((e.loaded / e.total) * 100)));
+        onProgress(pct);
+      };
+      xhr.onerror = () => {
+        if (attempt < maxAttempts) {
+          onRetry?.(attempt + 1);
+          onProgress(0);
+          runAttempt();
+          return;
+        }
+        reject(new Error("Gagal terhubung ke server. Pastikan backend jalan di port 5000."));
+      };
+      xhr.onload = () => {
+        const status = xhr.status;
+        let payload: any = {};
+        try {
+          payload = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+        } catch {
+          payload = {};
+        }
+        if (status >= 200 && status < 300) {
+          onProgress(100);
+          resolve(payload);
+          return;
+        }
+        if (status === 401) {
+          reject(new Error("Sesi login berakhir. Silakan login ulang."));
+          return;
+        }
+        const retryable = status >= 500 || status === 429;
+        if (retryable && attempt < maxAttempts) {
+          onRetry?.(attempt + 1);
+          onProgress(0);
+          runAttempt();
+          return;
+        }
+        reject(new Error(payload?.message || "Upload failed"));
+      };
+      xhr.send(fd);
+    };
+
+    runAttempt();
+  }),
   tasks: () => request("/tasks"),
   createTask: (payload: unknown) => request("/tasks", "POST", payload),
   updateTask: (taskId: number, payload: unknown) => request(`/tasks/${taskId}`, "PATCH", payload),

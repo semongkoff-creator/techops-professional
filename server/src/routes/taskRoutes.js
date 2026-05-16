@@ -14,7 +14,7 @@ import {
 } from "../controllers/taskController.js";
 import { auth, roleGuard } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
-import { uploadAvatar } from "../middleware/upload.js";
+import { uploadTaskMedia } from "../middleware/upload.js";
 import { validate } from "../middleware/validate.js";
 
 const router = express.Router();
@@ -28,7 +28,7 @@ router.post(
   asyncHandler(createTask),
 );
 router.get("/", auth, asyncHandler(listTasks));
-router.post("/upload-image", auth, roleGuard("staff", "atasan", "supervisor", "teknisi", "technician"), uploadAvatar.single("image"), asyncHandler(uploadTaskDocumentationImage));
+router.post("/upload-media", auth, roleGuard("teknisi", "technician"), uploadTaskMedia.single("media"), asyncHandler(uploadTaskDocumentationImage));
 router.get("/:id", auth, asyncHandler(getTaskById));
 router.patch("/:id", auth, [body("title").optional().notEmpty(), body("description").optional().notEmpty(), body("customer").optional().isString(), body("location").optional().notEmpty(), body("priority").optional().isIn(["low", "medium", "high"]), body("supervisor_id").optional({ nullable: true, checkFalsy: true }).isInt(), body("technician_id").optional({ nullable: true, checkFalsy: true }).isInt(), body("documentation_image_url").optional({ nullable: true, checkFalsy: true }).isURL(), body("completion_percent").optional({ nullable: true, checkFalsy: true }).isInt({ min: 0, max: 100 })], validate, asyncHandler(updateTask));
 router.delete("/:id", auth, asyncHandler(deleteTask));
