@@ -483,13 +483,25 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
     }
     try {
       setSaving(true);
-      await api.createTask({
+      const supervisorId = toIntOrUndefined(form.supervisor_id);
+      const staffId = toIntOrUndefined(form.staff_id);
+      const technicianId = toIntOrUndefined(form.technician_id);
+
+      // Role-aware payload:
+      // - Supervisor: boleh kirim ke staff + teknisi (opsional)
+      // - Staff: wajib supervisor + teknisi
+      // - Teknisi: supervisor + staff wajib, technician_id otomatis dari backend/login teknisi
+      const payload = {
         ...form,
-        supervisor_id: toIntOrUndefined(form.supervisor_id),
-        staff_id: isTechnicianRole ? toIntOrUndefined(form.staff_id) : undefined,
-        technician_id: isStaffRole ? toIntOrUndefined(form.technician_id) : undefined,
+        supervisor_id: supervisorId,
+        staff_id: isSupervisorRole || isTechnicianRole ? staffId : undefined,
+        technician_id: isSupervisorRole || isStaffRole ? technicianId : undefined,
         documentation_image_url: canUploadTaskMedia ? (form.documentation_image_url?.trim() || undefined) : undefined,
         completion_percent: Number(form.completion_percent || 0),
+      };
+
+      await api.createTask({
+        ...payload,
       });
       await onDone();
       setFormSuccess("Tugas berhasil disimpan.");
