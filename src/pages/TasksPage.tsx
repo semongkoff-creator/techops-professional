@@ -310,6 +310,22 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
     }
   }, [selectedTask]);
 
+  const sortTasksByDateAsc = (list: Task[]) => {
+    const toTime = (v?: string | null) => {
+      if (!v) return Number.POSITIVE_INFINITY;
+      const t = new Date(v).getTime();
+      return Number.isNaN(t) ? Number.POSITIVE_INFINITY : t;
+    };
+    return [...list].sort((a, b) => {
+      const dueDiff = toTime(a.due_date) - toTime(b.due_date);
+      if (dueDiff !== 0) return dueDiff;
+      const createdDiff = toTime(a.created_at) - toTime(b.created_at);
+      if (createdDiff !== 0) return createdDiff;
+      return Number(a.id) - Number(b.id);
+    });
+  };
+  const sortedTasks = useMemo(() => sortTasksByDateAsc(tasks), [tasks]);
+
   const mobileTasks = useMemo(() => tasks
     .filter((t) => {
       if (!query.trim()) return true;
@@ -323,6 +339,7 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
       if (filter === "in_progress") return pct > 0 && pct < 100;
       return pct >= 100 || t.status === "completed" || t.status === "closed";
     }), [tasks, query, filter]);
+  const mobileTasksSorted = useMemo(() => sortTasksByDateAsc(mobileTasks), [mobileTasks]);
 
   function onPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
     if (!scrollRef.current) return;
@@ -360,7 +377,7 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
     if (!btn) return;
     setIndicator({ left: btn.offsetLeft, width: btn.offsetWidth });
     btn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-  }, [filter, mobileTasks.length]);
+  }, [filter, mobileTasksSorted.length]);
 
   const FILTERS = [
     { key: "all" as const, label: "Semua", ref: allBtnRef },
@@ -533,7 +550,7 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
         </div>
       )}
       {isDesktop ? (
-        <div className="card"><div className="card-body"><div className="d-flex justify-content-between align-items-center mb-2"><h5 className="mb-0">Job Activity Table</h5>{canCreateTask && <button className="btn btn-primary rounded-pill px-3" onClick={() => setShowCreateModal(true)}><Plus size={16} /> Buat Tugas</button>}</div><div className="worksheet-head"><div><strong>UNIT</strong></div><div className="worksheet-brand">SATRIA PIRANTI PERKASA</div><div className="text-end"><span className="badge text-bg-primary">PCS</span></div></div><div className="table-wrap desktop-job-table"><table className="table align-middle"><thead><tr className="worksheet-group"><th colSpan={2}>IDENTITAS</th><th colSpan={4}>AKTIVITAS</th><th colSpan={4}>PROGRESS</th><th colSpan={4}>PENUGASAN</th><th colSpan={2}>AKSI</th></tr><tr><th>No</th><th>Tgl</th><th>Job</th><th>Detail Job</th><th>Customer</th><th>Lokasi</th><th>Plan</th><th>Aging</th><th>Status</th><th>Progress</th><th>Staff</th><th>Mekanik</th><th>Final</th><th>Keterangan</th><th>Dokumentasi</th><th>Aksi</th></tr></thead><tbody>{tasks.map((t, i) => <tr key={t.id}><td>{i + 1}</td><td>{formatDate(t.due_date || "")}</td><td>{t.priority?.toUpperCase() || "-"}</td><td>{t.title}</td><td>{t.customer || "-"}</td><td>{t.location || "-"}</td><td>{formatDate(t.due_date || "")}</td><td>{t.due_date ? Math.max(0, Math.ceil(((new Date(t.due_date).getTime() - Date.now()) / 86400000))) : "-"}</td><td><span className="badge text-bg-light border">{t.status}</span></td><td>{Math.max(0, Math.min(100, t.completion_percent || 0))}%</td><td>{staffName(t.created_by_atasan_id)}</td><td>{desktopTechnicianCell(t)}</td><td>{t.status === "completed" || t.status === "closed" ? "CLOSE" : "OPEN"}</td><td>{t.description || "-"}</td><td>{t.documentation_image_url ? <a href={t.documentation_image_url} target="_blank" rel="noreferrer">Lihat Gambar</a> : "-"}</td><td>{action(t)}</td></tr>)}</tbody></table></div></div></div>
+        <div className="card"><div className="card-body"><div className="d-flex justify-content-between align-items-center mb-2"><h5 className="mb-0">Job Activity Table</h5>{canCreateTask && <button className="btn btn-primary rounded-pill px-3" onClick={() => setShowCreateModal(true)}><Plus size={16} /> Buat Tugas</button>}</div><div className="worksheet-head"><div><strong>UNIT</strong></div><div className="worksheet-brand">SATRIA PIRANTI PERKASA</div><div className="text-end"><span className="badge text-bg-primary">PCS</span></div></div><div className="table-wrap desktop-job-table"><table className="table align-middle"><thead><tr className="worksheet-group"><th colSpan={2}>IDENTITAS</th><th colSpan={4}>AKTIVITAS</th><th colSpan={4}>PROGRESS</th><th colSpan={4}>PENUGASAN</th><th colSpan={2}>AKSI</th></tr><tr><th>No</th><th>Tgl</th><th>Job</th><th>Detail Job</th><th>Customer</th><th>Lokasi</th><th>Plan</th><th>Aging</th><th>Status</th><th>Progress</th><th>Staff</th><th>Mekanik</th><th>Final</th><th>Keterangan</th><th>Dokumentasi</th><th>Aksi</th></tr></thead><tbody>{sortedTasks.map((t, i) => <tr key={t.id}><td>{i + 1}</td><td>{formatDate(t.due_date || "")}</td><td>{t.priority?.toUpperCase() || "-"}</td><td>{t.title}</td><td>{t.customer || "-"}</td><td>{t.location || "-"}</td><td>{formatDate(t.due_date || "")}</td><td>{t.due_date ? Math.max(0, Math.ceil(((new Date(t.due_date).getTime() - Date.now()) / 86400000))) : "-"}</td><td><span className="badge text-bg-light border">{t.status}</span></td><td>{Math.max(0, Math.min(100, t.completion_percent || 0))}%</td><td>{staffName(t.created_by_atasan_id)}</td><td>{desktopTechnicianCell(t)}</td><td>{t.status === "completed" || t.status === "closed" ? "CLOSE" : "OPEN"}</td><td>{t.description || "-"}</td><td>{t.documentation_image_url ? <a href={t.documentation_image_url} target="_blank" rel="noreferrer">Lihat Gambar</a> : "-"}</td><td>{action(t)}</td></tr>)}</tbody></table></div></div></div>
       ) : (
         <div className="task-mobile-list d-grid gap-2">
           {canCreateTask && <div className="d-flex justify-content-end"><button className="btn btn-primary rounded-pill px-3" onClick={() => setShowCreateModal(true)}><Plus size={16} /> Buat Tugas</button></div>}
@@ -577,7 +594,7 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
             </div>
           </div>
 
-          {mobileTasks.map((t) => {
+          {mobileTasksSorted.map((t) => {
             const step = Math.max(1, Math.min(4, Math.round(t.completion_percent / 25)));
             const done = Number(t.completion_percent) >= 100 || t.status === "completed" || t.status === "closed";
             const statusLabel = done ? "Selesai" : Number(t.completion_percent) > 0 || t.status === "in_progress" ? "Sedang Berjalan" : "Belum Mulai";

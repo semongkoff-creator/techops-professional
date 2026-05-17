@@ -147,7 +147,9 @@ export async function exportData(req, res) {
     sql += selectedSource === "reports" ? " AND r.technician_id = ?" : " AND t.technician_id = ?";
     params.push(req.user.id);
   }
-  sql += selectedSource === "reports" ? " ORDER BY r.created_at DESC, r.id DESC" : " ORDER BY t.created_at DESC, t.id DESC";
+  sql += selectedSource === "reports"
+    ? " ORDER BY r.created_at DESC, r.id DESC"
+    : " ORDER BY CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END, t.due_date ASC, t.created_at ASC, t.id ASC";
 
   let [rows] = await pool.execute(sql, params);
   // Fallback untuk mode demo/testing: bila scoped role kosong, tampilkan data umum sesuai filter tanggal/teknisi.
@@ -177,7 +179,9 @@ export async function exportData(req, res) {
       fallbackSql += selectedSource === "reports" ? " AND r.technician_id = ?" : " AND t.technician_id = ?";
       fallbackParams.push(Number(technician_id));
     }
-    fallbackSql += selectedSource === "reports" ? " ORDER BY r.created_at DESC, r.id DESC" : " ORDER BY t.created_at DESC, t.id DESC";
+    fallbackSql += selectedSource === "reports"
+      ? " ORDER BY r.created_at DESC, r.id DESC"
+      : " ORDER BY CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END, t.due_date ASC, t.created_at ASC, t.id ASC";
     [rows] = await pool.execute(fallbackSql, fallbackParams);
   }
   const toYmd = (v) => {

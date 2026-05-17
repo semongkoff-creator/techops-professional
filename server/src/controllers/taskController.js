@@ -166,7 +166,7 @@ export async function listTasks(req, res) {
     sql += " AND (technician_id=? OR created_by_atasan_id=?)";
     params.push(req.user.id, req.user.id);
   }
-  sql += " ORDER BY created_at DESC";
+  sql += " ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date ASC, created_at ASC, id ASC";
   const [rows] = await pool.execute(sql, params);
   return res.json(rows);
 }
