@@ -4,11 +4,26 @@ import App from './App.tsx';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './index.css';
 import { bootstrapCapacitorRuntime } from "./mobile/capacitorBootstrap";
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
 
-void bootstrapCapacitorRuntime();
+window.addEventListener("unhandledrejection", (event) => {
+  // eslint-disable-next-line no-console
+  console.error("Unhandled promise rejection:", event.reason);
+});
+window.addEventListener("error", (event) => {
+  // eslint-disable-next-line no-console
+  console.error("Global error:", event.error ?? event.message);
+});
+
+void bootstrapCapacitorRuntime().catch((err) => {
+  // eslint-disable-next-line no-console
+  console.error("Capacitor bootstrap failed:", err);
+});
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
   </StrictMode>,
 );

@@ -18,9 +18,17 @@ export function useAuth() {
     const bootstrapAuth = async () => {
       try {
         if (token) {
-          const me = await api.me();
-          setUser(me as User);
-          return;
+          try {
+            const me = await api.me();
+            setUser(me as User);
+            return;
+          } catch {
+            // Token local bisa kadaluarsa; coba restore dari refresh cookie.
+            await api.refresh();
+            const me = await api.me();
+            setUser(me as User);
+            return;
+          }
         }
         // Silent login from refresh cookie (so user doesn't need to login again)
         await api.refresh();
