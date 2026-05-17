@@ -6,10 +6,11 @@ export async function bootstrapCapacitorRuntime() {
   if (!isNativeShell) return;
 
   try {
-    const [{ App }, { Keyboard }, { StatusBar }] = await Promise.all([
+    const [{ App }, { Keyboard }, { StatusBar }, { Camera }] = await Promise.all([
       import("@capacitor/app"),
       import("@capacitor/keyboard"),
       import("@capacitor/status-bar"),
+      import("@capacitor/camera"),
     ]);
 
     await StatusBar.setOverlaysWebView({ overlay: false }).catch(() => undefined);
@@ -26,11 +27,17 @@ export async function bootstrapCapacitorRuntime() {
     Keyboard.addListener("keyboardWillHide", () => {
       document.body.classList.remove("kb-open");
     });
+
+    // Request camera permission early on native shell so task media flow is smoother.
+    await Camera.requestPermissions({ permissions: ["camera"] }).catch(() => undefined);
   } catch {
     // Keep shell alive even if native helpers fail.
   }
 
-  // Push notification setup is optional and should never crash startup.
+  // Push setup intentionally opt-in to avoid startup crash on builds without full FCM setup.
+  const enablePush = import.meta.env.VITE_ENABLE_PUSH_MOBILE === "true";
+  if (!enablePush) return;
+
   try {
     const [{ PushNotifications }, { api }] = await Promise.all([
       import("@capacitor/push-notifications"),
