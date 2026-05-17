@@ -1,10 +1,35 @@
 import { pool } from "../db/pool.js";
 
+async function sendPushOneSignal({ token, title, body }) {
+  const appId = process.env.ONESIGNAL_APP_ID;
+  const restApiKey = process.env.ONESIGNAL_REST_API_KEY;
+  if (!appId || !restApiKey || !token) return false;
+
+  try {
+    const res = await fetch("https://api.onesignal.com/notifications?c=push", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Key ${restApiKey}`,
+      },
+      body: JSON.stringify({
+        app_id: appId,
+        include_player_ids: [token],
+        headings: { en: title, id: title },
+        contents: { en: body, id: body },
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function sendPushLegacy({ token, title, body }) {
   const serverKey = process.env.FCM_SERVER_KEY;
-  if (!serverKey || !token) return;
+  if (!serverKey || !token) return false;
   try {
-    await fetch("https://fcm.googleapis.com/fcm/send", {
+    const res = await fetch("https://fcm.googleapis.com/fcm/send", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -20,8 +45,9 @@ async function sendPushLegacy({ token, title, body }) {
         priority: "high",
       }),
     });
+    return res.ok;
   } catch {
-    // keep DB notification flow stable even if push fails
+    return false;
   }
 }
 
@@ -34,5 +60,10 @@ export async function createNotification({ userId, title, message, type, referen
   );
   const [rows] = await pool.execute("SELECT push_token FROM users WHERE id=? LIMIT 1", [userId]);
   const token = rows?.[0]?.push_token || null;
-  await sendPushLegacy({ token, title, body: message });
+
+  // Primary: OneSignal (if configured). Fallback: legacy FCM.
+  const sentByOneSignal = await sendPushOneSignal({ token, title, body: message });
+  if (!sentByOneSignal) {
+    await sendPushLegacy({ token, title, body: message });
+  }
 }
