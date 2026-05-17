@@ -1,8 +1,21 @@
--- Reset password semua akun ke format: <nama>@spp2626!
+-- Reset username + password semua akun ke format:
+-- username: nama (tanpa spasi)
+-- password: <username>@spp2626!
 -- Dieksekusi langsung di database production/dev sesuai kebutuhan.
 
 UPDATE users
 SET
+  username = CASE username
+    WHEN 'staff1' THEN 'irvann'
+    WHEN 'staff2' THEN 'eko'
+    WHEN 'spv1' THEN 'ajat'
+    WHEN 'teknisi1' THEN 'teknisia'
+    WHEN 'teknisi2' THEN 'teknisib'
+    WHEN 'mekanik1' THEN 'ahmadansorebashori'
+    WHEN 'mekanik2' THEN 'bambangfachru'
+    WHEN 'mekanik3' THEN 'muhdilutvi'
+    ELSE username
+  END,
   password_hash = CASE username
     WHEN 'staff1' THEN '$2b$10$Yzw52LG0GYX9RDdIOZ48peH2Aiba2i6vD247zs0yyS4g8MCvQ0MEu' -- irvann@spp2626!
     WHEN 'staff2' THEN '$2b$10$jYqNq0OZSnxWSzqfauqH0.gh/E0onVZx6axUjXTig4oT.cIFB73EK' -- eko@spp2626!
@@ -16,4 +29,3 @@ SET
   END,
   updated_at = NOW()
 WHERE username IN ('staff1', 'staff2', 'spv1', 'teknisi1', 'teknisi2', 'mekanik1', 'mekanik2', 'mekanik3');
-
