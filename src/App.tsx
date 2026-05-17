@@ -143,6 +143,41 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
+    const onPushReceived = (event: Event) => {
+      const payload = (event as CustomEvent<any>).detail || {};
+      const title = String(payload?.title || payload?.data?.title || "Notifikasi");
+      const body = String(payload?.body || payload?.data?.message || "Ada pembaruan terbaru.");
+      const synthetic: Notification = {
+        id: Date.now(),
+        user_id: user.id,
+        title,
+        message: body,
+        type: String(payload?.data?.type || "push"),
+        reference_type: String(payload?.data?.reference_type || "task"),
+        reference_id: Number(payload?.data?.reference_id || 0),
+        is_read: false,
+        created_at: new Date().toISOString(),
+      } as Notification;
+      setInAppBanner(synthetic);
+      setTimeout(() => setInAppBanner((prev) => (prev?.id === synthetic.id ? null : prev)), 4500);
+      void reload();
+    };
+
+    const onPushAction = (_event: Event) => {
+      void reload();
+      setPage("tasks");
+    };
+
+    window.addEventListener("push:received", onPushReceived as EventListener);
+    window.addEventListener("push:action", onPushAction as EventListener);
+    return () => {
+      window.removeEventListener("push:received", onPushReceived as EventListener);
+      window.removeEventListener("push:action", onPushAction as EventListener);
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
     let busy = false;
     const syncNotifications = async () => {
       if (busy) return;

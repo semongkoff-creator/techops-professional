@@ -6,11 +6,10 @@ export async function bootstrapCapacitorRuntime() {
   if (!isNativeShell) return;
 
   try {
-    const [{ App }, { Keyboard }, { StatusBar }, { Camera }] = await Promise.all([
+    const [{ App }, { Keyboard }, { StatusBar }] = await Promise.all([
       import("@capacitor/app"),
       import("@capacitor/keyboard"),
       import("@capacitor/status-bar"),
-      import("@capacitor/camera"),
     ]);
 
     await StatusBar.setOverlaysWebView({ overlay: false }).catch(() => undefined);
@@ -28,8 +27,6 @@ export async function bootstrapCapacitorRuntime() {
       document.body.classList.remove("kb-open");
     });
 
-    // Request camera permission early on native shell so task media flow is smoother.
-    await Camera.requestPermissions({ permissions: ["camera"] }).catch(() => undefined);
   } catch {
     // Keep shell alive even if native helpers fail.
   }
@@ -43,15 +40,34 @@ export async function bootstrapCapacitorRuntime() {
       import("@capacitor/push-notifications"),
       import("../services/api"),
     ]);
-    const perm = await PushNotifications.requestPermissions().catch(() => ({ receive: "denied" as const }));
+    const checked = await PushNotifications.checkPermissions().catch(() => ({ receive: "denied" as const }));
+    const perm = checked.receive === "prompt"
+      ? await PushNotifications.requestPermissions().catch(() => ({ receive: "denied" as const }))
+      : checked;
+
+    PushNotifications.addListener("registrationError", (err) => {
+      // eslint-disable-next-line no-console
+      console.error("Push registration error:", err);
+    });
+
     if (perm.receive === "granted") {
       await PushNotifications.register().catch(() => undefined);
       PushNotifications.addListener("registration", async ({ value }) => {
+        // eslint-disable-next-line no-console
+        console.log("Push token registered:", value);
         try {
           await api.updatePushToken(value);
         } catch {
           // keep app stable even if token sync fails
         }
+      });
+
+      PushNotifications.addListener("pushNotificationReceived", (notification) => {
+        window.dispatchEvent(new CustomEvent("push:received", { detail: notification }));
+      });
+
+      PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
+        window.dispatchEvent(new CustomEvent("push:action", { detail: action }));
       });
     }
   } catch {
