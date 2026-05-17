@@ -34,8 +34,8 @@ export async function bootstrapCapacitorRuntime() {
     // Keep shell alive even if native helpers fail.
   }
 
-  // Push setup intentionally opt-in to avoid startup crash on builds without full FCM setup.
-  const enablePush = import.meta.env.VITE_ENABLE_PUSH_MOBILE === "true";
+  // Push setup enabled by default on native builds. Set VITE_ENABLE_PUSH_MOBILE=false to disable.
+  const enablePush = import.meta.env.VITE_ENABLE_PUSH_MOBILE !== "false";
   if (!enablePush) return;
 
   try {

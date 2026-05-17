@@ -1,10 +1,16 @@
 import { pool } from "../db/pool.js";
 import { createAuditLog } from "../services/auditService.js";
+import { createNotification } from "../services/notificationService.js";
 import { generateTaskCode } from "../utils/taskCode.js";
 import fs from "fs";
 import path from "path";
 
 const taskStatuses = ["draft_to_supervisor", "assigned_to_technician", "in_progress", "completed", "closed"];
+
+async function notifyUsers(userIds, payload) {
+  const unique = [...new Set((userIds || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))];
+  await Promise.all(unique.map((userId) => createNotification({ userId, ...payload })));
+}
 
 function fileExtFromMime(mime) {
   if (mime === "video/mp4") return "mp4";
@@ -148,6 +154,17 @@ export async function createTask(req, res) {
     newValue: { status: initialStatus, supervisor_id: selectedSupervisorId, technician_id: selectedTechnicianId },
   });
 
+  await notifyUsers(
+    [selectedSupervisorId, selectedStaffId, selectedTechnicianId].filter((id) => Number(id) !== Number(req.user.id)),
+    {
+      title: "Tugas Baru",
+      message: "Ada tugas baru nih...! Segera cek dashboard kamu.",
+      type: "task_created",
+      referenceType: "task",
+      referenceId: result.insertId,
+    },
+  );
+
   return res.status(201).json({ id: result.insertId, code });
 }
 
@@ -217,6 +234,15 @@ export async function updateTaskStatus(req, res) {
   const oldStatus = task.status;
   await pool.execute("UPDATE tasks SET status=?, updated_at=NOW() WHERE id=?", [status, req.params.id]);
   await createAuditLog({ actorUserId: req.user.id, action: "task.status_update", entityType: "task", entityId: Number(req.params.id), oldValue: { status: oldStatus }, newValue: { status } });
+  if (req.user.role === "teknisi" || req.user.role === "technician") {
+    await notifyUsers([task.supervisor_id, task.created_by_atasan_id], {
+      title: "Task Diperbarui Teknisi",
+      message: `${task.code} - status menjadi ${status}`,
+      type: "task_updated",
+      referenceType: "task",
+      referenceId: Number(req.params.id),
+    });
+  }
 
   return res.json({ message: "Task status updated" });
 }
@@ -230,6 +256,15 @@ export async function updateTaskProgress(req, res) {
 
   await pool.execute("UPDATE tasks SET completion_percent=?, updated_at=NOW() WHERE id=?", [completion_percent, req.params.id]);
   await createAuditLog({ actorUserId: req.user.id, action: "task.progress_update", entityType: "task", entityId: Number(req.params.id), oldValue: { completion_percent: task.completion_percent }, newValue: { completion_percent } });
+  if (req.user.role === "teknisi" || req.user.role === "technician") {
+    await notifyUsers([task.supervisor_id, task.created_by_atasan_id], {
+      title: "Progress Task Diperbarui",
+      message: `${task.code} - progress ${completion_percent}%`,
+      type: "task_progress",
+      referenceType: "task",
+      referenceId: Number(req.params.id),
+    });
+  }
 
   return res.json({ message: "Task progress updated" });
 }

@@ -28,6 +28,8 @@ export default function App() {
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem("techops-theme") as Theme) || "light");
   const [markingAllNotifications, setMarkingAllNotifications] = useState(false);
   const [onlineTechIds, setOnlineTechIds] = useState<number[]>([]);
+  const [inAppBanner, setInAppBanner] = useState<Notification | null>(null);
+  const [lastNotifIdSeen, setLastNotifIdSeen] = useState<number>(0);
 
   const PRESENCE_KEY = "techops-presence-v1";
   const PRESENCE_TTL_MS = 45_000;
@@ -208,6 +210,18 @@ export default function App() {
     return raw === true || raw === 1 || raw === "1" || raw === "true" || raw === "t";
   };
   const unread = useMemo(() => notifications.filter((n) => !isRead(n)).length, [notifications]);
+
+  useEffect(() => {
+    if (!notifications.length) return;
+    const latest = notifications[0];
+    if (!latest) return;
+    if (latest.id <= lastNotifIdSeen) return;
+    if (!isRead(latest)) {
+      setInAppBanner(latest);
+      setTimeout(() => setInAppBanner((prev) => (prev?.id === latest.id ? null : prev)), 4500);
+    }
+    setLastNotifIdSeen(latest.id);
+  }, [notifications]);
   async function markAllNotificationsRead() {
     if (markingAllNotifications) return;
     const unreadIds = notifications.filter((n) => !isRead(n)).map((n) => n.id);
@@ -263,7 +277,26 @@ export default function App() {
     return <NotificationsPage notifications={notifications} onReadAll={markAllNotificationsRead} onReadOne={markOneNotificationRead} busy={markingAllNotifications} />;
   })();
 
-  if (isDesktop) return <DesktopLayout user={user} page={page} setPage={setPage} unread={unread} logout={logout} theme={theme} onToggleTheme={() => setTheme(theme === "light" ? "dark" : "light")} notifications={notifications} onReadNotification={markOneNotificationRead} onReadAllNotifications={markAllNotificationsRead} onOpenNotification={openNotificationTarget}>{content}</DesktopLayout>;
-  return <MobileLayout user={user} page={page} setPage={setPage} unread={unread} theme={theme} onToggleTheme={() => setTheme(theme === "light" ? "dark" : "light")} notifications={notifications} onReadNotification={markOneNotificationRead} onReadAllNotifications={markAllNotificationsRead} onOpenNotification={openNotificationTarget}>{content}</MobileLayout>;
+  const pageContent = (
+    <>
+      {inAppBanner && (
+        <button
+          type="button"
+          className="inapp-banner"
+          onClick={() => {
+            void markOneNotificationRead(inAppBanner.id);
+            openNotificationTarget(inAppBanner);
+            setInAppBanner(null);
+          }}
+        >
+          <strong>{inAppBanner.title}</strong>
+          <span>{inAppBanner.message}</span>
+        </button>
+      )}
+      {content}
+    </>
+  );
+  if (isDesktop) return <DesktopLayout user={user} page={page} setPage={setPage} unread={unread} logout={logout} theme={theme} onToggleTheme={() => setTheme(theme === "light" ? "dark" : "light")} notifications={notifications} onReadNotification={markOneNotificationRead} onReadAllNotifications={markAllNotificationsRead} onOpenNotification={openNotificationTarget}>{pageContent}</DesktopLayout>;
+  return <MobileLayout user={user} page={page} setPage={setPage} unread={unread} theme={theme} onToggleTheme={() => setTheme(theme === "light" ? "dark" : "light")} notifications={notifications} onReadNotification={markOneNotificationRead} onReadAllNotifications={markAllNotificationsRead} onOpenNotification={openNotificationTarget}>{pageContent}</MobileLayout>;
 }
 
