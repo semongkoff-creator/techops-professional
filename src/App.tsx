@@ -120,9 +120,10 @@ export default function App() {
       }
     };
 
+    const intervalMs = isDesktopViewport ? 15000 : 5000;
     const timer = window.setInterval(() => {
       void safeReload();
-    }, 15000);
+    }, intervalMs);
 
     const onVisible = () => {
       void safeReload();
@@ -136,7 +137,31 @@ export default function App() {
       window.removeEventListener("focus", onVisible);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [user]);
+  }, [user, isDesktopViewport]);
+
+  useEffect(() => {
+    if (!user) return;
+    let busy = false;
+    const syncNotifications = async () => {
+      if (busy) return;
+      if (document.visibilityState !== "visible") return;
+      busy = true;
+      try {
+        const n = await api.notifications();
+        setNotifications(n as Notification[]);
+      } catch {
+        // ignore intermittent errors
+      } finally {
+        busy = false;
+      }
+    };
+    const timer = window.setInterval(() => {
+      void syncNotifications();
+    }, isDesktopViewport ? 10000 : 4000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [user, isDesktopViewport]);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -212,6 +237,18 @@ export default function App() {
     }
   }
 
+  function openNotificationTarget(n: Notification) {
+    if (n.reference_type === "task") {
+      setPage("tasks");
+      return;
+    }
+    if (n.reference_type === "report") {
+      setPage("reports");
+      return;
+    }
+    setPage("notifications");
+  }
+
   if (loading) return <div className="center">Loading...</div>;
   if (!user) return <LoginPage onLogin={login} />;
   const isDesktop = isDesktopViewport;
@@ -226,7 +263,7 @@ export default function App() {
     return <NotificationsPage notifications={notifications} onReadAll={markAllNotificationsRead} onReadOne={markOneNotificationRead} busy={markingAllNotifications} />;
   })();
 
-  if (isDesktop) return <DesktopLayout user={user} page={page} setPage={setPage} unread={unread} logout={logout} theme={theme} onToggleTheme={() => setTheme(theme === "light" ? "dark" : "light")}>{content}</DesktopLayout>;
-  return <MobileLayout user={user} page={page} setPage={setPage} unread={unread} theme={theme} onToggleTheme={() => setTheme(theme === "light" ? "dark" : "light")}>{content}</MobileLayout>;
+  if (isDesktop) return <DesktopLayout user={user} page={page} setPage={setPage} unread={unread} logout={logout} theme={theme} onToggleTheme={() => setTheme(theme === "light" ? "dark" : "light")} notifications={notifications} onReadNotification={markOneNotificationRead} onReadAllNotifications={markAllNotificationsRead} onOpenNotification={openNotificationTarget}>{content}</DesktopLayout>;
+  return <MobileLayout user={user} page={page} setPage={setPage} unread={unread} theme={theme} onToggleTheme={() => setTheme(theme === "light" ? "dark" : "light")} notifications={notifications} onReadNotification={markOneNotificationRead} onReadAllNotifications={markAllNotificationsRead} onOpenNotification={openNotificationTarget}>{content}</MobileLayout>;
 }
 
