@@ -105,6 +105,40 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
+    if (!user) return;
+    let busy = false;
+    const safeReload = async () => {
+      if (busy) return;
+      if (document.visibilityState !== "visible") return;
+      busy = true;
+      try {
+        await reload();
+      } catch {
+        // keep UI stable on intermittent network issues
+      } finally {
+        busy = false;
+      }
+    };
+
+    const timer = window.setInterval(() => {
+      void safeReload();
+    }, 15000);
+
+    const onVisible = () => {
+      void safeReload();
+    };
+
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [user]);
+
+  useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("techops-theme", theme);
   }, [theme]);
