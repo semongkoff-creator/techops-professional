@@ -104,6 +104,13 @@ export async function updateMyProfile(req, res) {
   return res.json({ message: "Profile updated" });
 }
 
+export async function updateMyPushToken(req, res) {
+  const { push_token } = req.body;
+  await pool.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS push_token TEXT", []);
+  await pool.execute("UPDATE users SET push_token=?, updated_at=NOW() WHERE id=?", [push_token || null, req.user.id]);
+  return res.json({ message: "Push token updated" });
+}
+
 export async function uploadMyAvatar(req, res) {
   if (!req.file) return res.status(400).json({ message: "Avatar file is required" });
 

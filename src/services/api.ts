@@ -143,6 +143,7 @@ export const api = {
   users: (role?: string) => request(`/users${role ? `?role=${role}` : ""}`),
   createMember: (payload: unknown) => request("/users/members", "POST", payload),
   updateProfile: (payload: { name: string; avatar_url?: string }) => request("/users/me", "PATCH", payload),
+  updatePushToken: (pushToken: string) => request("/users/me/push-token", "PATCH", { push_token: pushToken }),
   changePassword: (payload: { current_password: string; new_password: string }) => request("/users/me/password", "PATCH", payload),
   uploadAvatar: (file: File) => upload("/users/me/avatar", file),
   uploadTaskDocumentation: (file: File, taskId?: number) => upload("/tasks/upload-media", file, "media", "POST", taskId ? { task_id: String(taskId) } : undefined),

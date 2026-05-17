@@ -5,10 +5,12 @@ export async function bootstrapCapacitorRuntime() {
     (window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() === true;
   if (!isNativeShell) return;
 
-  const [{ App }, { Keyboard }, { StatusBar }] = await Promise.all([
+  const [{ App }, { Keyboard }, { StatusBar }, { PushNotifications }, { api }] = await Promise.all([
     import("@capacitor/app"),
     import("@capacitor/keyboard"),
     import("@capacitor/status-bar"),
+    import("@capacitor/push-notifications"),
+    import("../services/api"),
   ]);
 
   await StatusBar.setOverlaysWebView({ overlay: false }).catch(() => undefined);
@@ -25,4 +27,16 @@ export async function bootstrapCapacitorRuntime() {
   Keyboard.addListener("keyboardWillHide", () => {
     document.body.classList.remove("kb-open");
   });
+
+  const perm = await PushNotifications.requestPermissions().catch(() => ({ receive: "denied" as const }));
+  if (perm.receive === "granted") {
+    await PushNotifications.register().catch(() => undefined);
+    PushNotifications.addListener("registration", async ({ value }) => {
+      try {
+        await api.updatePushToken(value);
+      } catch {
+        // keep app stable even if token sync fails
+      }
+    });
+  }
 }
