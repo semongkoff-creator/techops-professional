@@ -25,6 +25,7 @@ export type Task = {
   due_date?: string | null;
   completion_percent: number;
   documentation_image_url?: string | null;
+  created_at?: string;
 };
 
 export type Report = {
@@ -45,4 +46,7 @@ export type Notification = {
   message: string;
   is_read: boolean | number | string;
   created_at: string;
+  type?: string;
+  reference_type?: string;
+  reference_id?: number | string;
 };

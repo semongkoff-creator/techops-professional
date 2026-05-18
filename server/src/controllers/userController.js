@@ -2,6 +2,7 @@ import { pool } from "../db/pool.js";
 import bcrypt from "bcrypt";
 import fs from "fs";
 import path from "path";
+import { createAuditLog } from "../services/auditService.js";
 
 function fileExtFromMime(mime) {
   if (mime === "image/png") return "png";
@@ -52,6 +53,13 @@ function saveAvatarToLocal({ file, userId }) {
   const localPath = path.join(avatarsDir, filename);
   fs.writeFileSync(localPath, file.buffer);
   return `/uploads/avatars/${filename}`;
+}
+
+function maskToken(token) {
+  const value = String(token || "");
+  if (!value) return null;
+  if (value.length <= 10) return `${value.slice(0, 2)}***${value.slice(-2)}`;
+  return `${value.slice(0, 6)}***${value.slice(-4)}`;
 }
 
 export async function listUsers(req, res) {
@@ -106,9 +114,113 @@ export async function updateMyProfile(req, res) {
 
 export async function updateMyPushToken(req, res) {
   const { push_token } = req.body;
-  await pool.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS push_token TEXT", []);
-  await pool.execute("UPDATE users SET push_token=?, updated_at=NOW() WHERE id=?", [push_token || null, req.user.id]);
-  return res.json({ message: "Push token updated" });
+  const nextToken = push_token || null;
+  const deviceId = req.headers["x-device-id"] || null;
+  const userAgent = req.headers["user-agent"] || null;
+  const ip = req.ip || req.socket?.remoteAddress || null;
+
+  try {
+    await pool.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS push_token TEXT", []);
+    const [rows] = await pool.execute("SELECT push_token FROM users WHERE id=? LIMIT 1", [req.user.id]);
+    const prevToken = rows?.[0]?.push_token || null;
+
+    await pool.execute("UPDATE users SET push_token=?, updated_at=NOW() WHERE id=?", [nextToken, req.user.id]);
+
+    await createAuditLog({
+      actorUserId: req.user.id,
+      action: nextToken ? "push_token_updated" : "push_token_revoked",
+      entityType: "user",
+      entityId: req.user.id,
+      oldValue: {
+        push_token: maskToken(prevToken),
+      },
+      newValue: {
+        push_token: maskToken(nextToken),
+        device_id: deviceId,
+        user_agent: userAgent,
+        ip,
+      },
+    });
+
+    return res.json({ message: "Push token updated" });
+  } catch (err) {
+    try {
+      await createAuditLog({
+        actorUserId: req.user?.id || null,
+        action: "push_token_update_failed",
+        entityType: "user",
+        entityId: req.user?.id || null,
+        oldValue: null,
+        newValue: {
+          push_token: maskToken(nextToken),
+          device_id: deviceId,
+          user_agent: userAgent,
+          ip,
+          error: err?.message || "unknown_error",
+        },
+      });
+    } catch (_) {
+      // do not block response if audit logging fails
+    }
+    throw err;
+  }
+}
+
+export async function pushTokenHealth(req, res) {
+  const limitRaw = Number(req.query.limit || 50);
+  const limit = Number.isFinite(limitRaw)
+    ? Math.max(1, Math.min(200, Math.trunc(limitRaw)))
+    : 50;
+
+  const [rows] = await pool.execute(
+    `
+    SELECT
+      u.id,
+      u.name,
+      u.username,
+      u.role,
+      u.push_token,
+      u.updated_at,
+      al.action AS last_audit_action,
+      al.created_at AS last_audit_at
+    FROM users u
+    LEFT JOIN LATERAL (
+      SELECT action, created_at
+      FROM audit_logs
+      WHERE entity_type='user'
+        AND entity_id=u.id
+        AND action IN ('push_token_updated', 'push_token_revoked', 'push_token_update_failed')
+      ORDER BY created_at DESC
+      LIMIT 1
+    ) al ON TRUE
+    WHERE u.is_active=TRUE
+    ORDER BY u.updated_at DESC
+    LIMIT ?
+    `,
+    [limit],
+  );
+
+  const summary = {
+    total_users: rows.length,
+    token_active: rows.filter((r) => !!r.push_token).length,
+    token_missing: rows.filter((r) => !r.push_token).length,
+    last_failed: rows.filter((r) => r.last_audit_action === "push_token_update_failed")
+      .length,
+  };
+
+  const items = rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    username: r.username,
+    role: r.role,
+    token_status: r.push_token ? "active" : "missing",
+    token_masked: maskToken(r.push_token),
+    updated_at: r.updated_at,
+    last_audit_action: r.last_audit_action || null,
+    last_audit_at: r.last_audit_at || null,
+  }));
+
+  return res.json({ summary, items });
 }
 
 export async function uploadMyAvatar(req, res) {

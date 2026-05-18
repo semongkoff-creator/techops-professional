@@ -3,6 +3,7 @@ import { Bell, ChevronLeft, ChevronRight, KeyRound, LogOut, PencilLine } from "l
 import type { Task, User } from "../types";
 import { api } from "../services/api";
 import { Avatar } from "../components/Avatar";
+import { registerNativeBridgeListeners, requestNativeMediaPicker, isNativeBridgeAvailable, type NativeMediaPayload } from "../mobile/flutterBridge";
 
 type FancyOption = { value: string; label: string };
 
@@ -215,6 +216,35 @@ export function ProfilePage({ user, isDesktop, onChanged, onOpenNotifications, o
   const [memberMsg, setMemberMsg] = useState("");
   const [memberErr, setMemberErr] = useState("");
   const [memberForm, setMemberForm] = useState({ name: "", email: "", phone_number: "", username: "", password: "", role: "teknisi" });
+  const [nativeAvatarPickPending, setNativeAvatarPickPending] = useState(false);
+  const nativePayloadToFile = (payload: NativeMediaPayload) => {
+    const base64 = String(payload.base64 || "");
+    const mime = String(payload.mime || "application/octet-stream");
+    const name = String(payload.name || `avatar-${Date.now()}`);
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new File([bytes], name, { type: mime });
+  };
+  const uploadAvatarFile = async (file?: File | null) => {
+    if (!file) return;
+    setAvatarErr("");
+    setAvatarMsg("");
+    try {
+      setAvatarBusy(true);
+      const r = await api.uploadAvatar(file);
+      setAvatar((r as { avatar_url: string }).avatar_url);
+      await onChanged();
+      setAvatarMsg("Avatar berhasil diupload.");
+    } catch (err) {
+      setAvatarErr((err as Error).message || "Gagal upload avatar.");
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+  const pickAvatarFromNative = () => { if (!isNativeBridgeAvailable()) return false; setNativeAvatarPickPending(true); requestNativeMediaPicker(); return true; };
   useEffect(() => {
     // Sync profile state by account, so avatar/phone do not leak between users.
     setName(user.name || "");
@@ -223,6 +253,23 @@ export function ProfilePage({ user, isDesktop, onChanged, onOpenNotifications, o
     setPhone(localStorage.getItem(phoneKey) || "");
     setDepartment(localStorage.getItem(deptKey) || "Field Operations");
   }, [user.id, user.name, user.email, user.avatar_url, phoneKey, deptKey]);
+  useEffect(() => {
+    const unregister = registerNativeBridgeListeners(
+      (payload) => {
+        if (!nativeAvatarPickPending) return;
+        try {
+          const file = nativePayloadToFile(payload);
+          void uploadAvatarFile(file);
+        } catch {
+          setAvatarErr("Gagal membaca file avatar dari native.");
+        } finally {
+          setNativeAvatarPickPending(false);
+        }
+      },
+      () => undefined,
+    );
+    return unregister;
+  }, [nativeAvatarPickPending]);
   const myTasks = tasks.filter((t) => {
     if (user.role === "supervisor") return t.supervisor_id === user.id;
     if (user.role === "teknisi" || user.role === "technician") return t.technician_id === user.id;
@@ -243,26 +290,12 @@ export function ProfilePage({ user, isDesktop, onChanged, onOpenNotifications, o
               type="file"
               accept="image/*"
               onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                setAvatarErr("");
-                setAvatarMsg("");
-                try {
-                  setAvatarBusy(true);
-                  const r = await api.uploadAvatar(file);
-                  setAvatar((r as { avatar_url: string }).avatar_url);
-                  await onChanged();
-                  setAvatarMsg("Avatar berhasil diupload.");
-                } catch (err) {
-                  setAvatarErr((err as Error).message || "Gagal upload avatar.");
-                } finally {
-                  setAvatarBusy(false);
-                  e.currentTarget.value = "";
-                }
+                await uploadAvatarFile(e.target.files?.[0]);
+                e.currentTarget.value = "";
               }}
             />
             <div className="profile-head">
-              <button type="button" className="profile-avatar-upload-btn" onClick={() => { document.getElementById("avatar-file-input")?.click(); }}>
+              <button type="button" className="profile-avatar-upload-btn" onClick={() => { const openedNative = pickAvatarFromNative(); if (!openedNative) document.getElementById("avatar-file-input")?.click(); }}>
                 <Avatar user={{ ...user, avatar_url: avatar || user.avatar_url }} />
               </button>
               <h4>{user.name}</h4>
@@ -404,25 +437,12 @@ export function ProfilePage({ user, isDesktop, onChanged, onOpenNotifications, o
       type="file"
       accept="image/*"
       onChange={async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setAvatarErr("");
-        setAvatarMsg("");
-        try {
-          setAvatarBusy(true);
-          const r = await api.uploadAvatar(file);
-          setAvatar((r as { avatar_url: string }).avatar_url);
-          await onChanged();
-          setAvatarMsg("Avatar berhasil diupload.");
-        } catch (err) {
-          setAvatarErr((err as Error).message || "Gagal upload avatar.");
-        } finally {
-          setAvatarBusy(false);
-          e.currentTarget.value = "";
-        }
+        await uploadAvatarFile(e.target.files?.[0]);
+        e.currentTarget.value = "";
       }}
     />
-    <button className="btn btn-outline-primary" disabled={avatarBusy} onClick={() => { document.getElementById("avatar-file-input")?.click(); }}>{avatarBusy ? "Uploading..." : "Upload Avatar"}</button>
+    <button className="btn btn-outline-primary" disabled={avatarBusy} onClick={() => { const openedNative = pickAvatarFromNative(); if (!openedNative) document.getElementById("avatar-file-input")?.click(); }}>{avatarBusy ? "Uploading..." : "Upload Avatar"}</button>
     <button className="btn btn-primary" onClick={async () => { await api.updateProfile({ name, avatar_url: avatar }); localStorage.setItem(phoneKey, phone); localStorage.setItem(deptKey, department); await onChanged(); setEditMode(false); }}>Save</button>
   </div></section>;
 }
+

@@ -1,6 +1,7 @@
 import { pool } from "../db/pool.js";
 import { createAuditLog } from "../services/auditService.js";
 import { createNotification } from "../services/notificationService.js";
+import { buildTaskAssignedNotification, buildTaskUpdatedNotification } from "../services/notificationTemplates.js";
 import { generateTaskCode } from "../utils/taskCode.js";
 import fs from "fs";
 import path from "path";
@@ -154,16 +155,28 @@ export async function createTask(req, res) {
     newValue: { status: initialStatus, supervisor_id: selectedSupervisorId, technician_id: selectedTechnicianId },
   });
 
-  await notifyUsers(
-    [selectedSupervisorId, selectedStaffId, selectedTechnicianId].filter((id) => Number(id) !== Number(req.user.id)),
-    {
-      title: "Tugas Baru",
-      message: "Ada tugas baru nih...! Segera cek dashboard kamu.",
-      type: "task_created",
-      referenceType: "task",
-      referenceId: result.insertId,
-    },
-  );
+  let targetUserIds = [];
+  if (isSupervisor) {
+    targetUserIds = [selectedStaffId, selectedTechnicianId];
+  } else if (isStaff) {
+    targetUserIds = [selectedTechnicianId];
+  } else if (isTechnician) {
+    targetUserIds = [selectedSupervisorId, selectedStaffId];
+  }
+
+  const notif = buildTaskAssignedNotification({
+    senderRole: req.user.role,
+    senderName: req.user.name,
+  });
+
+  await notifyUsers(targetUserIds.filter((id) => Number(id) !== Number(req.user.id)), {
+    ...notif,
+    referenceType: "task",
+    referenceId: result.insertId,
+    senderId: req.user.id,
+    senderRole: req.user.role,
+    taskId: result.insertId,
+  });
 
   return res.status(201).json({ id: result.insertId, code });
 }
@@ -215,7 +228,19 @@ export async function assignTechnician(req, res) {
     [req.params.id, req.user.id, technician_id, note || `status:${oldStatus}->${newStatus}`],
   );
   await createAuditLog({ actorUserId: req.user.id, action: "task.assign_technician", entityType: "task", entityId: Number(req.params.id), oldValue: { status: oldStatus, technician_id: task.technician_id }, newValue: { status: newStatus, technician_id } });
-  await createNotification({ userId: technician_id, title: "Tugas Ditugaskan", message: `${task.code} - ${task.title}`, type: "task_assigned", referenceType: "task", referenceId: Number(req.params.id) });
+  const notif = buildTaskAssignedNotification({
+    senderRole: req.user.role,
+    senderName: req.user.name,
+  });
+  await createNotification({
+    userId: technician_id,
+    ...notif,
+    referenceType: "task",
+    referenceId: Number(req.params.id),
+    senderId: req.user.id,
+    senderRole: req.user.role,
+    taskId: Number(req.params.id),
+  });
 
   return res.json({ message: "Technician assigned" });
 }
@@ -235,12 +260,19 @@ export async function updateTaskStatus(req, res) {
   await pool.execute("UPDATE tasks SET status=?, updated_at=NOW() WHERE id=?", [status, req.params.id]);
   await createAuditLog({ actorUserId: req.user.id, action: "task.status_update", entityType: "task", entityId: Number(req.params.id), oldValue: { status: oldStatus }, newValue: { status } });
   if (req.user.role === "teknisi" || req.user.role === "technician") {
+    const notif = buildTaskUpdatedNotification({
+      senderRole: req.user.role,
+      senderName: req.user.name,
+      status,
+      completionPercent: task.completion_percent,
+    });
     await notifyUsers([task.supervisor_id, task.created_by_atasan_id], {
-      title: "Task Diperbarui Teknisi",
-      message: `${task.code} - status menjadi ${status}`,
-      type: "task_updated",
+      ...notif,
       referenceType: "task",
       referenceId: Number(req.params.id),
+      senderId: req.user.id,
+      senderRole: req.user.role,
+      taskId: Number(req.params.id),
     });
   }
 
@@ -257,12 +289,19 @@ export async function updateTaskProgress(req, res) {
   await pool.execute("UPDATE tasks SET completion_percent=?, updated_at=NOW() WHERE id=?", [completion_percent, req.params.id]);
   await createAuditLog({ actorUserId: req.user.id, action: "task.progress_update", entityType: "task", entityId: Number(req.params.id), oldValue: { completion_percent: task.completion_percent }, newValue: { completion_percent } });
   if (req.user.role === "teknisi" || req.user.role === "technician") {
+    const notif = buildTaskUpdatedNotification({
+      senderRole: req.user.role,
+      senderName: req.user.name,
+      status: task.status,
+      completionPercent: completion_percent,
+    });
     await notifyUsers([task.supervisor_id, task.created_by_atasan_id], {
-      title: "Progress Task Diperbarui",
-      message: `${task.code} - progress ${completion_percent}%`,
-      type: "task_progress",
+      ...notif,
       referenceType: "task",
       referenceId: Number(req.params.id),
+      senderId: req.user.id,
+      senderRole: req.user.role,
+      taskId: Number(req.params.id),
     });
   }
 

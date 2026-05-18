@@ -1,6 +1,7 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 
 export const ASSET_BASE = API_BASE.replace(/\/api\/?$/, "");
+export const API_BASE_URL = API_BASE;
 
 type Method = "GET" | "POST" | "PATCH" | "DELETE";
 const DEVICE_ID_KEY = "techops-device-id-v1";
@@ -17,6 +18,12 @@ function getDeviceId() {
 
 function getToken() {
   return localStorage.getItem("token");
+}
+export function getAccessToken() {
+  return getToken();
+}
+export function getDeviceIdForNativeBridge() {
+  return getDeviceId();
 }
 
 function setToken(token: string) {
@@ -231,6 +238,7 @@ export const api = {
   readNotification: (id: number) => request(`/notifications/${id}/read`, "PATCH"),
   dashboardSummary: () => request("/dashboard/summary"),
   dashboardCharts: () => request("/dashboard/charts"),
+  pushTokenHealth: (limit = 50) => request(`/users/push-token-health?limit=${limit}`),
   exportData: async (query: string, format: "pdf" | "xls" | "xlsx") => {
     let res = await fetch(`${API_BASE}/dashboard/export${query}`, {
       method: "GET",

@@ -6,7 +6,7 @@
 UPDATE users
 SET
   username = CASE username
-    WHEN 'staff1' THEN 'irvann'
+    WHEN 'staff1' THEN 'irvan'
     WHEN 'staff2' THEN 'eko'
     WHEN 'spv1' THEN 'ajat'
     WHEN 'teknisi1' THEN 'teknisia'

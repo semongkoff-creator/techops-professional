@@ -1,6 +1,6 @@
 import express from "express";
 import { body, query } from "express-validator";
-import { changeMyPassword, createMember, getUserById, listUsers, updateMyProfile, updateMyPushToken, uploadMyAvatar } from "../controllers/userController.js";
+import { changeMyPassword, createMember, getUserById, listUsers, pushTokenHealth, updateMyProfile, updateMyPushToken, uploadMyAvatar } from "../controllers/userController.js";
 import { auth, roleGuard } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { uploadAvatar } from "../middleware/upload.js";
@@ -9,6 +9,14 @@ import { validate } from "../middleware/validate.js";
 const router = express.Router();
 
 router.get("/", auth, [query("role").optional().isIn(["staff", "atasan", "supervisor", "teknisi", "technician"])], validate, asyncHandler(listUsers));
+router.get(
+  "/push-token-health",
+  auth,
+  roleGuard("supervisor", "atasan"),
+  [query("limit").optional().isInt({ min: 1, max: 200 })],
+  validate,
+  asyncHandler(pushTokenHealth),
+);
 router.post("/members", auth, roleGuard("supervisor", "atasan"), [
   body("name").notEmpty().isLength({ min: 2 }),
   body("username").notEmpty().isLength({ min: 3 }),

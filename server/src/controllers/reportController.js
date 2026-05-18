@@ -1,6 +1,7 @@
 import { pool } from "../db/pool.js";
 import { createAuditLog } from "../services/auditService.js";
 import { createNotification } from "../services/notificationService.js";
+import { buildTaskUpdatedNotification } from "../services/notificationTemplates.js";
 
 export async function createReport(req, res) {
   const { task_id, report_date, supervisor_id, progress_percent, issue_text, summary_text } = req.body;
@@ -25,8 +26,28 @@ export async function createReport(req, res) {
   );
 
   await createAuditLog({ actorUserId: req.user.id, action: "report.submit", entityType: "report", entityId: result.insertId, newValue: { report_status: "submitted_by_technician" } });
-  const fromRole = req.user.role === "staff" ? "Staff" : "Teknisi";
-  await createNotification({ userId: supervisor_id, title: `Laporan Baru dari ${fromRole}`, message: `Task ${task.code}`, type: "report_submitted", referenceType: "report", referenceId: result.insertId });
+  const notif = buildTaskUpdatedNotification({
+    senderRole: req.user.role,
+    senderName: req.user.name,
+    status: "completed",
+    completionPercent: 100,
+  });
+  const targetUserIds = [...new Set([Number(supervisor_id), Number(task.created_by_atasan_id)])]
+    .filter((id) => Number.isFinite(id) && id > 0 && id !== Number(req.user.id));
+  await Promise.all(
+    targetUserIds.map((userId) =>
+      createNotification({
+        userId,
+        ...notif,
+        type: "report_submitted",
+        referenceType: "report",
+        referenceId: result.insertId,
+        senderId: req.user.id,
+        senderRole: req.user.role,
+        taskId: Number(task_id),
+      }),
+    ),
+  );
   await createNotification({
     userId: req.user.id,
     title: "Laporan Selesai Berhasil Dikirim",

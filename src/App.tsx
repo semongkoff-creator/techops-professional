@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "./hooks/useAuth";
 import { api } from "./services/api";
 import type { Notification, Report, Task, User } from "./types";
@@ -12,6 +12,7 @@ import { ReportsPage } from "./pages/ReportsPage";
 import { AnalyticsPage, NotificationsPage } from "./pages/SupportPages";
 import { ExportPage, ProfilePage } from "./pages/SettingsPages";
 import { useIsDesktop } from "./hooks/useIsDesktop";
+import { registerNativeBridgeListeners } from "./mobile/flutterBridge";
 
 export default function App() {
   const { user, setUser, loading, login, logout } = useAuth();
@@ -25,11 +26,13 @@ export default function App() {
   const [staffs, setStaffs] = useState<User[]>([]);
   const [atasans, setAtasans] = useState<User[]>([]);
   const [summary, setSummary] = useState<{ taskStats: Array<{ status: string; total: number }>; reportStats: Array<{ report_status: string; total: number }> } | null>(null);
-  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem("techops-theme") as Theme) || "light");
+  const [pushHealth, setPushHealth] = useState<{ summary: { total_users: number; token_active: number; token_missing: number; last_failed: number }; items: Array<{ id: number; name: string; username: string; role: string; token_status: "active" | "missing"; last_audit_action?: string | null }> } | null>(null);
+  const [theme, setTheme] = useState<Theme>("light");
   const [markingAllNotifications, setMarkingAllNotifications] = useState(false);
   const [onlineTechIds, setOnlineTechIds] = useState<number[]>([]);
   const [inAppBanner, setInAppBanner] = useState<Notification | null>(null);
   const [lastNotifIdSeen, setLastNotifIdSeen] = useState<number>(0);
+  const lastBrowserNotifIdRef = useRef<number>(0);
 
   const PRESENCE_KEY = "techops-presence-v1";
   const PRESENCE_TTL_MS = 45_000;
@@ -62,11 +65,12 @@ export default function App() {
 
   async function reload() {
     if (!user) return;
-    const [t, r, n, ds, spv, tek, staffUsers, atasanUsers, allUsers] = await Promise.allSettled([
+    const [t, r, n, ds, ph, spv, tek, staffUsers, atasanUsers, allUsers] = await Promise.allSettled([
       api.tasks(),
       api.reports(),
       api.notifications(),
       api.dashboardSummary(),
+      api.pushTokenHealth(50),
       api.users("supervisor"),
       api.users("teknisi"),
       api.users("staff"),
@@ -78,6 +82,7 @@ export default function App() {
     if (r.status === "fulfilled") setReports(r.value as Report[]);
     if (n.status === "fulfilled") setNotifications(n.value as Notification[]);
     if (ds.status === "fulfilled") setSummary(ds.value as { taskStats: Array<{ status: string; total: number }>; reportStats: Array<{ report_status: string; total: number }> });
+    if (ph.status === "fulfilled") setPushHealth(ph.value as { summary: { total_users: number; token_active: number; token_missing: number; last_failed: number }; items: Array<{ id: number; name: string; username: string; role: string; token_status: "active" | "missing"; last_audit_action?: string | null }> });
 
     const usersFallback = allUsers.status === "fulfilled" ? (allUsers.value as User[]) : [];
     const supervisorsDataRaw = spv.status === "fulfilled"
@@ -143,6 +148,37 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
+    if (!("Notification" in window)) return;
+    if (Notification.permission !== "default") return;
+    const timer = window.setTimeout(() => {
+      Notification.requestPermission().catch(() => undefined);
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (!("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+    if (!notifications.length) return;
+    const latestUnread = notifications.find((n) => !isRead(n));
+    if (!latestUnread) return;
+    if (latestUnread.id <= lastBrowserNotifIdRef.current) return;
+    lastBrowserNotifIdRef.current = latestUnread.id;
+    const systemNotif = new Notification(latestUnread.title || "Notifikasi Baru", {
+      body: latestUnread.message || "Ada pembaruan terbaru.",
+      tag: `techops-${latestUnread.id}`,
+    });
+    systemNotif.onclick = () => {
+      window.focus();
+      void markOneNotificationRead(latestUnread.id);
+      openNotificationTarget(latestUnread);
+      systemNotif.close();
+    };
+  }, [notifications, user]);
+
+  useEffect(() => {
+    if (!user) return;
     const onPushReceived = (event: Event) => {
       const payload = (event as CustomEvent<any>).detail || {};
       const title = String(payload?.title || payload?.data?.title || "Notifikasi");
@@ -163,9 +199,17 @@ export default function App() {
       void reload();
     };
 
-    const onPushAction = (_event: Event) => {
+    const onPushAction = (event: Event) => {
+      const payload = (event as CustomEvent<any>).detail || {};
+      const deepLink = String(payload?.notification?.data?.deep_link || payload?.data?.deep_link || "");
+      if (deepLink.includes("/reports")) {
+        setPage("reports");
+      } else if (deepLink.includes("/notifications")) {
+        setPage("notifications");
+      } else {
+        setPage("tasks");
+      }
       void reload();
-      setPage("tasks");
     };
 
     window.addEventListener("push:received", onPushReceived as EventListener);
@@ -174,6 +218,33 @@ export default function App() {
       window.removeEventListener("push:received", onPushReceived as EventListener);
       window.removeEventListener("push:action", onPushAction as EventListener);
     };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const unregister = registerNativeBridgeListeners(
+      () => {
+        // media is handled inside page-level upload flow (TasksPage/ProfilePage).
+      },
+      (payload) => {
+        if (payload?.deep_link) {
+          const deepLink = String(payload.deep_link);
+          if (deepLink.includes("/tasks")) {
+            setPage("tasks");
+          } else if (deepLink.includes("/reports")) {
+            setPage("reports");
+          } else if (deepLink.includes("/notifications")) {
+            setPage("notifications");
+          } else {
+            setPage("dashboard");
+          }
+        } else {
+          setPage("tasks");
+        }
+        void reload();
+      },
+    );
+    return unregister;
   }, [user]);
 
   useEffect(() => {
@@ -303,7 +374,7 @@ export default function App() {
   const isDesktop = isDesktopViewport;
 
   const content = (() => {
-    if (page === "dashboard") return <DashboardPage isDesktop={isDesktop} user={user} summary={summary} tasks={tasks} reports={reports} technicians={technicians} onlineTechIds={onlineTechIds} onJump={setPage} />;
+    if (page === "dashboard") return <DashboardPage isDesktop={isDesktop} user={user} summary={summary} pushHealth={pushHealth} tasks={tasks} reports={reports} technicians={technicians} onlineTechIds={onlineTechIds} onJump={setPage} />;
     if (page === "tasks") return <TasksPage isDesktop={isDesktop} user={user} tasks={tasks} supervisors={supervisors} technicians={technicians} staffs={staffs} atasans={atasans} onDone={reload} />;
     if (page === "reports") return <ReportsPage isDesktop={isDesktop} user={user} reports={reports} tasks={tasks} supervisors={supervisors} onDone={reload} />;
     if (page === "analytics") return <AnalyticsPage tasks={tasks} technicians={technicians} />;

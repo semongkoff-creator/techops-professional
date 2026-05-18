@@ -4,6 +4,9 @@ dist/
 coverage/
 .DS_Store
 *.log
+*.apk
+*.aab
+*.idsig
 .env*
 !.env.example
 android/.gradle/
@@ -15,3 +18,12 @@ android/captures/
 *.jks
 server/uploads/
 .vscode/
+
+# Flutter hybrid generated files
+flutter_hybrid/.dart_tool/
+flutter_hybrid/build/
+flutter_hybrid/.flutter-plugins
+flutter_hybrid/.flutter-plugins-dependencies
+flutter_hybrid/.packages
+flutter_hybrid/android/.gradle/
+flutter_hybrid/android/local.properties

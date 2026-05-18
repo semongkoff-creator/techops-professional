@@ -1,7 +1,9 @@
 import { ChevronRight, Eye, MapPin, Pencil, Plus, Search, SlidersHorizontal, Trash2, UserCircle2, X } from "lucide-react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { api } from "../services/api";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { createPortal } from "react-dom";
+import { API_BASE_URL, api, getAccessToken, getDeviceIdForNativeBridge } from "../services/api";
 import type { Task, User } from "../types";
+import { registerNativeBridgeListeners, requestNativeMediaPicker, requestNativeTaskMediaUpload, isLikelyNativeWebView, isNativeBridgeAvailable, type NativeMediaPayload } from "../mobile/flutterBridge";
 
 function DatePickerField({
   value,
@@ -128,7 +130,7 @@ function FancySelect({
   );
 }
 
-export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, staffs, onDone }: { isDesktop: boolean; user: User; tasks: Task[]; supervisors: User[]; technicians: User[]; staffs: User[]; onDone: () => Promise<void>; }) {
+export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, staffs, onDone }: { isDesktop: boolean; user: User; tasks: Task[]; supervisors: User[]; technicians: User[]; staffs: User[]; atasans?: User[]; onDone: () => Promise<void>; }) {
   const supervisorUsers = useMemo(() => supervisors.filter((u) => String(u.role || "").toLowerCase() === "supervisor"), [supervisors]);
   const preferredSupervisor = useMemo(
     () => supervisorUsers.find((u) => !String(u.name || "").toLowerCase().includes("staff")) || supervisorUsers[0],
@@ -141,6 +143,7 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [activeTaskMenuId, setActiveTaskMenuId] = useState<number | null>(null);
+  const [activeTaskMenuPos, setActiveTaskMenuPos] = useState<{ top: number; left: number; openUp: boolean } | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedTaskMode, setSelectedTaskMode] = useState<"view" | "update">("view");
   const [pendingProgress, setPendingProgress] = useState("0");
@@ -164,6 +167,7 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
   const [editMediaPreview, setEditMediaPreview] = useState<string>("");
   const [updateMediaPreview, setUpdateMediaPreview] = useState<string>("");
   const [updateMediaFile, setUpdateMediaFile] = useState<File | null>(null);
+  const [nativeTarget, setNativeTarget] = useState<"create" | "edit" | "update" | null>(null);
   const canCreateTask = user.role === "supervisor" || user.role === "staff" || user.role === "teknisi" || user.role === "technician";
   const canAssign = user.role === "staff";
   const canUpdateTask = user.role === "staff" || user.role === "teknisi" || user.role === "technician";
@@ -219,7 +223,36 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
     reader.onload = () => setter(String(reader.result || ""));
     reader.readAsDataURL(file);
   };
+  const nativePayloadToFile = (payload: NativeMediaPayload) => {
+    const base64 = String(payload.base64 || "");
+    const mime = String(payload.mime || "application/octet-stream");
+    const name = String(payload.name || `upload-${Date.now()}`);
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new File([bytes], name, { type: mime });
+  };
+  const pickFromNative = (target: "create" | "edit" | "update") => {
+    setNativeTarget(target);
+    const token = getAccessToken();
+    if (token) {
+      const payload: { upload_url: string; bearer_token: string; task_id?: string; device_id: string } = {
+        upload_url: `${API_BASE_URL}/tasks/upload-media`,
+        bearer_token: token,
+        device_id: getDeviceIdForNativeBridge(),
+      };
+      if (target === "update" && selectedTask?.id) payload.task_id = String(selectedTask.id);
+      if (target === "edit" && editTask?.id) payload.task_id = String(editTask.id);
+      requestNativeTaskMediaUpload(payload);
+      return;
+    }
+    requestNativeMediaPicker();
+  };
   const requestCameraPermission = async () => {
+    if (isNativeBridgeAvailable()) return true;
+    if (isLikelyNativeWebView()) return false;
     if (!navigator.mediaDevices?.getUserMedia) return true;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
@@ -305,6 +338,56 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
   useEffect(() => () => {
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
   }, []);
+  useEffect(() => {
+    const unregister = registerNativeBridgeListeners(
+      (payload) => {
+        if (!nativeTarget) return;
+        try {
+          const file = nativePayloadToFile(payload);
+          if (nativeTarget === "create") void onCreateDocPick(file);
+          if (nativeTarget === "edit") void onEditDocPick(file);
+          if (nativeTarget === "update") onUpdateDocPick(file);
+        } catch {
+          showToast("Gagal membaca media dari native.", "error");
+        } finally {
+          setNativeTarget(null);
+        }
+      },
+      () => undefined,
+      (payload) => {
+        if (!nativeTarget) return;
+        if (!payload?.ok) {
+          showToast(payload?.message || "Upload native gagal.", "error");
+          setNativeTarget(null);
+          return;
+        }
+        const uploadedUrl = String(payload.documentation_image_url || "");
+        if (!uploadedUrl) {
+          showToast("URL dokumentasi tidak ditemukan.", "error");
+          setNativeTarget(null);
+          return;
+        }
+        if (nativeTarget === "create") {
+          setCreateMediaPreview(uploadedUrl);
+          setForm((prev) => ({ ...prev, documentation_image_url: uploadedUrl }));
+        }
+        if (nativeTarget === "edit") {
+          setEditMediaPreview(uploadedUrl);
+          setEditTask((prev) => (prev ? { ...prev, documentation_image_url: uploadedUrl } : prev));
+        }
+        if (nativeTarget === "update") {
+          setUpdateMediaPreview(uploadedUrl);
+          if (selectedTask) {
+            setSelectedTask({ ...selectedTask, documentation_image_url: uploadedUrl });
+          }
+          setUpdateMediaFile(null);
+        }
+        showToast("Upload native berhasil.");
+        setNativeTarget(null);
+      },
+    );
+    return unregister;
+  }, [nativeTarget, editTask]);
   useEffect(() => {
     if (!selectedTask) {
       setUpdateMediaFile(null);
@@ -397,6 +480,65 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
     </select>
   );
   const desktopTechnicianCell = (t: Task) => (canAssign && isDesktop && isAssignableTask(t) ? technicianSelect(t) : technicianName(t.technician_id));
+  const tasksById = useMemo(() => {
+    const map = new Map<number, Task>();
+    tasks.forEach((task) => map.set(task.id, task));
+    return map;
+  }, [tasks]);
+
+  const openTaskMenu = (taskId: number, event: ReactMouseEvent<HTMLButtonElement>) => {
+    if (activeTaskMenuId === taskId) {
+      setActiveTaskMenuId(null);
+      setActiveTaskMenuPos(null);
+      return;
+    }
+    const triggerRect = event.currentTarget.getBoundingClientRect();
+    const menuWidth = 168;
+    const estimatedMenuHeight = 172;
+    const viewportPadding = 8;
+    const spaceBelow = window.innerHeight - triggerRect.bottom;
+    const openUp = spaceBelow < estimatedMenuHeight;
+    const left = Math.max(
+      viewportPadding,
+      Math.min(triggerRect.right - menuWidth, window.innerWidth - menuWidth - viewportPadding),
+    );
+    const top = openUp ? triggerRect.top - 8 : triggerRect.bottom + 8;
+    setActiveTaskMenuId(taskId);
+    setActiveTaskMenuPos({ top, left, openUp });
+  };
+
+  const closeTaskMenu = () => {
+    setActiveTaskMenuId(null);
+    setActiveTaskMenuPos(null);
+  };
+
+  const renderActionMenu = (task: Task) => (
+    <div className={`task-inline-menu compact task-action-menu-portal ${activeTaskMenuPos?.openUp ? "open-up" : "open-down"}`}>
+      <button type="button" onClick={() => { setSelectedTaskMode(canUpdateTask ? "update" : "view"); setSelectedTask(task); closeTaskMenu(); }}><Eye size={14} /> Lihat</button>
+      {canUpdateTask && <button type="button" onClick={() => { setSelectedTaskMode("update"); setSelectedTask(task); closeTaskMenu(); }}><Pencil size={14} /> Update Task</button>}
+      {(user.role === "supervisor") && <button type="button" onClick={() => { openEditTask(task); closeTaskMenu(); }}><Pencil size={14} /> Edit</button>}
+      {(user.role === "supervisor") && <button type="button" className="danger" onClick={() => { setConfirmDeleteTask(task); closeTaskMenu(); }}><Trash2 size={14} /> Hapus</button>}
+    </div>
+  );
+
+  useEffect(() => {
+    if (!activeTaskMenuId) return;
+    const onOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest(".task-more-btn")) return;
+      if (target.closest(".task-action-menu-portal")) return;
+      closeTaskMenu();
+    };
+    const onViewportChange = () => closeTaskMenu();
+    document.addEventListener("mousedown", onOutside);
+    window.addEventListener("scroll", onViewportChange, true);
+    window.addEventListener("resize", onViewportChange);
+    return () => {
+      document.removeEventListener("mousedown", onOutside);
+      window.removeEventListener("scroll", onViewportChange, true);
+      window.removeEventListener("resize", onViewportChange);
+    };
+  }, [activeTaskMenuId]);
 
   const action = (t: Task) => (
     <div className={`d-flex flex-wrap gap-2 ${isDesktop ? "desktop-action-wrap" : ""}`}>
@@ -450,14 +592,7 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
         </select>
       </>}
       <div className={`task-more-wrap ${isDesktop ? "desktop-more" : ""}`}>
-        <button type="button" className="task-more-btn" onClick={() => setActiveTaskMenuId((prev) => (prev === t.id ? null : t.id))}>...</button>
-        {activeTaskMenuId === t.id && (
-          <div className={`task-inline-menu compact ${isDesktop ? "desktop-action-menu open-down" : ""}`}>
-            <button type="button" onClick={() => { setSelectedTaskMode(canUpdateTask ? "update" : "view"); setSelectedTask(t); setActiveTaskMenuId(null); }}><Eye size={14} /> Lihat</button>
-            {(user.role === "supervisor") && <button type="button" onClick={() => { openEditTask(t); setActiveTaskMenuId(null); }}><Pencil size={14} /> Edit</button>}
-            {(user.role === "supervisor") && <button type="button" className="danger" onClick={() => { setConfirmDeleteTask(t); setActiveTaskMenuId(null); }}><Trash2 size={14} /> Hapus</button>}
-          </div>
-        )}
+        <button type="button" className="task-more-btn" onClick={(e) => openTaskMenu(t.id, e)}>...</button>
       </div>
     </div>
   );
@@ -614,19 +749,29 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
             const done = Number(t.completion_percent) >= 100 || t.status === "completed" || t.status === "closed";
             const statusLabel = done ? "Selesai" : Number(t.completion_percent) > 0 || t.status === "in_progress" ? "Sedang Berjalan" : "Belum Mulai";
             const statusClass = done ? "done" : Number(t.completion_percent) > 0 || t.status === "in_progress" ? "progress" : "not-started";
-            return <div className={`card task-mobile-card ${t.priority}`} key={t.id}><div className="card-body"><div className="d-flex justify-content-between align-items-center mb-2"><span className={`task-prio ${t.priority}`}>{t.priority.toUpperCase()}</span><div className="task-more-wrap"><button type="button" className="task-more-btn" onClick={() => setActiveTaskMenuId((prev) => (prev === t.id ? null : t.id))}>...</button>{activeTaskMenuId === t.id && <div className="task-inline-menu compact">{user.role === "supervisor" && <><button type="button" onClick={() => { openEditTask(t); setActiveTaskMenuId(null); }}><Pencil size={14} /> Edit</button><button type="button" className="danger" onClick={() => { setConfirmDeleteTask(t); setActiveTaskMenuId(null); }}><Trash2 size={14} /> Hapus</button></>}{canUpdateTask && <button type="button" onClick={() => { setSelectedTaskMode("update"); setSelectedTask(t); setActiveTaskMenuId(null); }}><Pencil size={14} /> Update Task</button>}<button type="button" onClick={() => { setSelectedTaskMode("view"); setSelectedTask(t); setActiveTaskMenuId(null); }}><Eye size={14} /> Lihat</button></div>}</div></div><h4>{t.title}</h4><p className="text-secondary mb-1"><MapPin size={14} /> {t.location}</p><p className="text-secondary mb-1">Keterangan: {t.description || "-"}</p><p className="text-secondary mb-2 task-supervisor"><UserCircle2 size={14} /> Supervisor: {supervisorName(t.supervisor_id)}</p><p className="text-secondary mb-2 task-supervisor"><UserCircle2 size={14} /> Staff: {staffName(t.created_by_atasan_id)}</p><p className="text-secondary mb-2 task-supervisor"><UserCircle2 size={14} /> Teknisi: {technicianName(t.technician_id)}</p><div className="d-flex justify-content-between align-items-center"><div className={`task-progress-inline ${statusClass}`}>{[1, 2, 3, 4].map((i) => <span key={i} className={i <= step ? "on" : ""} />)}<strong>{statusLabel}</strong></div>{done ? <span className={`task-done ${statusClass}`}>Selesai</span> : <button type="button" className="task-arrow-btn" onClick={() => { setSelectedTaskMode(canUpdateTask ? "update" : "view"); setSelectedTask(t); }}><ChevronRight size={18} color="#ffffff" /></button>}</div></div></div>;
+            return <div className={`card task-mobile-card ${t.priority}`} key={t.id}><div className="card-body"><div className="d-flex justify-content-between align-items-center mb-2"><span className={`task-prio ${t.priority}`}>{t.priority.toUpperCase()}</span><div className="task-more-wrap"><button type="button" className="task-more-btn" onClick={(e) => openTaskMenu(t.id, e)}>...</button></div></div><h4>{t.title}</h4><p className="text-secondary mb-1"><MapPin size={14} /> {t.location}</p><p className="text-secondary mb-1">Keterangan: {t.description || "-"}</p><p className="text-secondary mb-2 task-supervisor"><UserCircle2 size={14} /> Supervisor: {supervisorName(t.supervisor_id)}</p><p className="text-secondary mb-2 task-supervisor"><UserCircle2 size={14} /> Staff: {staffName(t.created_by_atasan_id)}</p><p className="text-secondary mb-2 task-supervisor"><UserCircle2 size={14} /> Teknisi: {technicianName(t.technician_id)}</p><div className="d-flex justify-content-between align-items-center"><div className={`task-progress-inline ${statusClass}`}>{[1, 2, 3, 4].map((i) => <span key={i} className={i <= step ? "on" : ""} />)}<strong>{statusLabel}</strong></div>{done ? <span className={`task-done ${statusClass}`}>Selesai</span> : <button type="button" className="task-arrow-btn" onClick={() => { setSelectedTaskMode(canUpdateTask ? "update" : "view"); setSelectedTask(t); }}><ChevronRight size={18} color="#ffffff" /></button>}</div></div></div>;
           })}
         </div>
       )}
+      {activeTaskMenuId && activeTaskMenuPos && tasksById.get(activeTaskMenuId) && createPortal(
+        <div style={{ position: "fixed", top: activeTaskMenuPos.top, left: activeTaskMenuPos.left, zIndex: 12000, transform: activeTaskMenuPos.openUp ? "translateY(-100%)" : "none" }}>
+          {renderActionMenu(tasksById.get(activeTaskMenuId)!)}
+        </div>,
+        document.body,
+      )}
 
-      {editTask && <div className="task-modal-backdrop" onClick={() => setEditTask(null)}><div className="task-modal card task-form" onClick={(e) => e.stopPropagation()}><div className="card-body d-grid gap-2"><div className="d-flex justify-content-between align-items-center"><h5 className="mb-0">Edit Tugas</h5><button className="btn btn-light btn-sm" onClick={() => setEditTask(null)}><X size={16} /></button></div><label className="task-label">Detail Job</label><input className="form-control" value={editTask.title} onChange={(e) => setEditTask({ ...editTask, title: e.target.value })} /><label className="task-label">Keterangan</label><textarea className="form-control" value={editTask.description} onChange={(e) => setEditTask({ ...editTask, description: e.target.value })} /><label className="task-label">Customer</label><input className="form-control" placeholder="Customer" value={editTask.customer || ""} onChange={(e) => setEditTask({ ...editTask, customer: e.target.value })} /><label className="task-label">Lokasi</label><input className="form-control" value={editTask.location} onChange={(e) => setEditTask({ ...editTask, location: e.target.value })} />{canUploadTaskMedia && <><label className="task-label">Dokumentasi (Foto / Video)</label><div className="d-flex gap-2"><button type="button" className="btn btn-outline-primary btn-sm" onClick={async () => { const ok = await requestCameraPermission(); if (!ok) { showToast("Izin kamera ditolak. Aktifkan permission kamera di browser.", "error"); return; } editCameraInputRef.current?.click(); }}>Ambil dari Kamera</button><button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => editGalleryInputRef.current?.click()}>Pilih dari Galeri</button></div><input ref={editCameraInputRef} type="file" accept="image/*,video/*" capture="environment" style={{ display: "none" }} onChange={(e) => { void onEditDocPick(e.target.files?.[0]); }} /><input ref={editGalleryInputRef} type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={(e) => { void onEditDocPick(e.target.files?.[0]); }} />{editTask.documentation_image_url && <a href={editTask.documentation_image_url} target="_blank" rel="noreferrer" className="small text-decoration-none">Lihat dokumentasi terupload</a>}{uploadingDoc && <div className="small text-secondary">Mengupload media... {uploadPercent}%{uploadRetrying ? " (Mencoba ulang upload...)" : ""}<div className="progress mt-1" style={{ height: "6px" }}><div className="progress-bar" role="progressbar" style={{ width: `${uploadPercent}%` }} /></div></div>}</>}<label className="task-label">Job (Prioritas)</label><FancySelect value={editTask.priority} onChange={(v) => setEditTask({ ...editTask, priority: v as Task["priority"] })} options={[{ value: "low", label: "low" }, { value: "medium", label: "medium" }, { value: "high", label: "high" }]} /><label className="task-label">Supervisor</label><FancySelect value={String(editTask.supervisor_id)} onChange={(v) => setEditTask({ ...editTask, supervisor_id: Number(v) })} options={supervisorUsers.map((s) => ({ value: String(s.id), label: s.name }))} /><label className="task-label">Mekanik (Teknisi)</label><FancySelect value={String(editTask.technician_id ?? "")} onChange={(v) => setEditTask({ ...editTask, technician_id: v ? Number(v) : null })} options={[{ value: "", label: "Belum ditentukan" }, ...technicians.map((te) => ({ value: String(te.id), label: te.name }))]} /><label className="task-label">Progress</label><FancySelect value={String(editTask.completion_percent)} onChange={(v) => setEditTask({ ...editTask, completion_percent: Number(v) })} options={[{ value: "0", label: "Belum Mulai (0%)" }, { value: "50", label: "Sedang Berjalan (50%)" }, { value: "100", label: "Selesai (100%)" }]} /><label className="task-label">Plan / Tanggal</label><DatePickerField value={editTask.due_date ? String(editTask.due_date).slice(0, 10) : ""} onChange={(v) => setEditTask({ ...editTask, due_date: v })} /><button className="btn btn-primary" disabled={uploadingDoc} onClick={submitEditTask}>{uploadingDoc ? `Mengupload media... ${uploadPercent}%` : "Simpan Perubahan"}</button></div></div></div>}
+      {editTask && <div className="task-modal-backdrop" onClick={() => setEditTask(null)}><div className="task-modal card task-form" onClick={(e) => e.stopPropagation()}><div className="card-body d-grid gap-2"><div className="d-flex justify-content-between align-items-center"><h5 className="mb-0">Edit Tugas</h5><button className="btn btn-light btn-sm" onClick={() => setEditTask(null)}><X size={16} /></button></div><label className="task-label">Detail Job</label><input className="form-control" value={editTask.title} onChange={(e) => setEditTask({ ...editTask, title: e.target.value })} /><label className="task-label">Keterangan</label><textarea className="form-control" value={editTask.description} onChange={(e) => setEditTask({ ...editTask, description: e.target.value })} /><label className="task-label">Customer</label><input className="form-control" placeholder="Customer" value={editTask.customer || ""} onChange={(e) => setEditTask({ ...editTask, customer: e.target.value })} /><label className="task-label">Lokasi</label><input className="form-control" value={editTask.location} onChange={(e) => setEditTask({ ...editTask, location: e.target.value })} />{canUploadTaskMedia && <><label className="task-label">Dokumentasi (Foto / Video)</label><div className="d-flex gap-2"><button type="button" className="btn btn-outline-primary btn-sm" onClick={async () => { if (isNativeBridgeAvailable()) { pickFromNative("edit"); return; } const ok = await requestCameraPermission(); if (!ok) { showToast(isLikelyNativeWebView() ? "Bridge native belum siap. Tutup dan buka lagi aplikasi, lalu coba lagi." : "Izin kamera ditolak. Aktifkan permission kamera di browser.", "error"); return; } editCameraInputRef.current?.click(); }}>Ambil dari Kamera</button><button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => { if (isNativeBridgeAvailable()) { pickFromNative("edit"); return; } editGalleryInputRef.current?.click(); }}>Pilih dari Galeri</button></div><input ref={editCameraInputRef} type="file" accept="image/*,video/*" capture="environment" style={{ display: "none" }} onChange={(e) => { void onEditDocPick(e.target.files?.[0]); }} /><input ref={editGalleryInputRef} type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={(e) => { void onEditDocPick(e.target.files?.[0]); }} />{editTask.documentation_image_url && <a href={editTask.documentation_image_url} target="_blank" rel="noreferrer" className="small text-decoration-none">Lihat dokumentasi terupload</a>}{uploadingDoc && <div className="small text-secondary">Mengupload media... {uploadPercent}%{uploadRetrying ? " (Mencoba ulang upload...)" : ""}<div className="progress mt-1" style={{ height: "6px" }}><div className="progress-bar" role="progressbar" style={{ width: `${uploadPercent}%` }} /></div></div>}</>}<label className="task-label">Job (Prioritas)</label><FancySelect value={editTask.priority} onChange={(v) => setEditTask({ ...editTask, priority: v as Task["priority"] })} options={[{ value: "low", label: "low" }, { value: "medium", label: "medium" }, { value: "high", label: "high" }]} /><label className="task-label">Supervisor</label><FancySelect value={String(editTask.supervisor_id)} onChange={(v) => setEditTask({ ...editTask, supervisor_id: Number(v) })} options={supervisorUsers.map((s) => ({ value: String(s.id), label: s.name }))} /><label className="task-label">Mekanik (Teknisi)</label><FancySelect value={String(editTask.technician_id ?? "")} onChange={(v) => setEditTask({ ...editTask, technician_id: v ? Number(v) : null })} options={[{ value: "", label: "Belum ditentukan" }, ...technicians.map((te) => ({ value: String(te.id), label: te.name }))]} /><label className="task-label">Progress</label><FancySelect value={String(editTask.completion_percent)} onChange={(v) => setEditTask({ ...editTask, completion_percent: Number(v) })} options={[{ value: "0", label: "Belum Mulai (0%)" }, { value: "50", label: "Sedang Berjalan (50%)" }, { value: "100", label: "Selesai (100%)" }]} /><label className="task-label">Plan / Tanggal</label><DatePickerField value={editTask.due_date ? String(editTask.due_date).slice(0, 10) : ""} onChange={(v) => setEditTask({ ...editTask, due_date: v })} /><button className="btn btn-primary" disabled={uploadingDoc} onClick={submitEditTask}>{uploadingDoc ? `Mengupload media... ${uploadPercent}%` : "Simpan Perubahan"}</button></div></div></div>}
       {showFilterModal && <div className="task-modal-backdrop" onClick={() => setShowFilterModal(false)}><div className="task-modal card" onClick={(e) => e.stopPropagation()}><div className="card-body d-grid gap-2"><div className="d-flex justify-content-between align-items-center"><h5 className="mb-0">Filter Tugas</h5><button className="btn btn-light btn-sm" onClick={() => setShowFilterModal(false)}><X size={16} /></button></div><button className={`btn ${filter === "all" ? "btn-primary" : "btn-outline-primary"}`} onClick={() => { setFilter("all"); setShowFilterModal(false); }}>Semua</button><button className={`btn ${filter === "not_started" ? "btn-primary" : "btn-outline-primary"}`} onClick={() => { setFilter("not_started"); setShowFilterModal(false); }}>Belum Mulai</button><button className={`btn ${filter === "in_progress" ? "btn-primary" : "btn-outline-primary"}`} onClick={() => { setFilter("in_progress"); setShowFilterModal(false); }}>Sedang Berjalan</button><button className={`btn ${filter === "done" ? "btn-primary" : "btn-outline-primary"}`} onClick={() => { setFilter("done"); setShowFilterModal(false); }}>Selesai</button></div></div></div>}
-      {selectedTask && <div className="task-modal-backdrop" onClick={() => setSelectedTask(null)}><div className="task-modal card" onClick={(e) => e.stopPropagation()}><div className="card-body d-grid gap-2"><div className="d-flex justify-content-between align-items-center"><h5 className="mb-0">Detail Tugas</h5><button className="btn btn-light btn-sm" onClick={() => setSelectedTask(null)}><X size={16} /></button></div><div><strong>{selectedTask.title}</strong></div><div className="text-secondary">Keterangan: {selectedTask.description || "-"}</div><div className="text-secondary">Lokasi: {selectedTask.location}</div><div className="text-secondary">Supervisor: {supervisorName(selectedTask.supervisor_id)}</div><div className="text-secondary">Staff: {staffName(selectedTask.created_by_atasan_id)}</div><div className="text-secondary">Teknisi: {technicianName(selectedTask.technician_id)}</div><div className="text-secondary">Status: {selectedTask.status}</div><div className="text-secondary">Progress: {selectedTask.completion_percent}%</div>{selectedTask.documentation_image_url && <a href={selectedTask.documentation_image_url} target="_blank" rel="noreferrer" className="text-decoration-none">{isVideoUrl(selectedTask.documentation_image_url) ? <video src={selectedTask.documentation_image_url} controls style={{ width: "100%", maxHeight: 220, borderRadius: 10, border: "1px solid #dbe3f3" }} /> : <img src={selectedTask.documentation_image_url} alt="Dokumentasi tugas" style={{ width: "100%", maxHeight: 180, objectFit: "cover", borderRadius: 10, border: "1px solid #dbe3f3" }} />}</a>}{canUpdateTask && !isDesktop && selectedTaskMode === "update" && <><label className="task-label">Update Progres Pekerjaan</label><select className="form-select form-select-sm task-progress-select" value={pendingProgress} onChange={(e) => setPendingProgress(e.target.value)}><option value="0">Belum Mulai</option><option value="50">Sedang Berjalan</option><option value="100">Selesai</option></select>{isTechnicianRole && <><label className="task-label">Dokumentasi Update (Foto / Video)</label><div className="d-flex gap-2"><button type="button" className="btn btn-outline-primary btn-sm" onClick={async () => { const ok = await requestCameraPermission(); if (!ok) { showToast("Izin kamera ditolak. Aktifkan permission kamera di browser.", "error"); return; } updateCameraInputRef.current?.click(); }}>Ambil dari Kamera</button><button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => updateGalleryInputRef.current?.click()}>Pilih dari Galeri</button></div><input ref={updateCameraInputRef} type="file" accept="image/*,video/*" capture="environment" style={{ display: "none" }} onChange={(e) => { onUpdateDocPick(e.target.files?.[0]); }} /><input ref={updateGalleryInputRef} type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={(e) => { onUpdateDocPick(e.target.files?.[0]); }} />{updateMediaPreview && (isVideoUrl(updateMediaPreview) ? <video src={updateMediaPreview} controls style={{ width: "100%", maxHeight: 220, borderRadius: 10, border: "1px solid #dbe3f3" }} /> : <img src={updateMediaPreview} alt="Preview dokumentasi update" style={{ width: "100%", maxHeight: 180, objectFit: "cover", borderRadius: 10, border: "1px solid #dbe3f3" }} />)}{uploadingDoc && <div className="small text-secondary">Mengupload media... {uploadPercent}%{uploadRetrying ? " (Mencoba ulang upload...)" : ""}<div className="progress mt-1" style={{ height: "6px" }}><div className="progress-bar" role="progressbar" style={{ width: `${uploadPercent}%` }} /></div></div>}</>}<button type="button" className="btn btn-primary btn-sm" onClick={async () => { const progress = Number(pendingProgress); const status = progress >= 100 ? "completed" : progress > 0 ? "in_progress" : "assigned_to_technician"; try { let documentationUrl = selectedTask.documentation_image_url || ""; if (isTechnicianRole && updateMediaFile) { const uploaded = await uploadDocumentationFromFile(updateMediaFile, selectedTask.id); if (!uploaded) return; documentationUrl = uploaded; } if (isTechnicianRole && documentationUrl !== (selectedTask.documentation_image_url || "")) { await api.updateTask(selectedTask.id, { documentation_image_url: documentationUrl }); } await api.updateTaskProgress(selectedTask.id, { completion_percent: progress }); await api.updateTaskStatus(selectedTask.id, { status }); await onDone(); setSelectedTask(null); setUpdateMediaFile(null); setUpdateMediaPreview(""); showToast("Progres task berhasil diperbarui."); } catch (err) { showToast((err as Error).message || "Gagal update progres task.", "error"); } }}>Konfirmasi Update</button></>}</div></div></div>}
-      {canCreateTask && showCreateModal && <div className="task-modal-backdrop" onClick={() => setShowCreateModal(false)}><div className="task-modal card task-form" onClick={(e) => e.stopPropagation()}><div className="card-body d-grid gap-2"><div className="d-flex justify-content-between align-items-center"><h5 className="mb-0">Buat Tugas</h5><button className="btn btn-light btn-sm" onClick={() => setShowCreateModal(false)}><X size={16} /></button></div><label className="task-label">Detail Job</label><input className="form-control" placeholder="Isi detail job" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /><label className="task-label">Keterangan</label><textarea className="form-control" placeholder="Isi keterangan pekerjaan" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /><label className="task-label">Customer</label><input className="form-control" placeholder="Nama customer" value={form.customer} onChange={(e) => setForm({ ...form, customer: e.target.value })} /><label className="task-label">Lokasi</label><input className="form-control" placeholder="Lokasi pekerjaan" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />{canUploadTaskMedia && <><label className="task-label">Dokumentasi (Foto / Video)</label><div className="d-flex gap-2"><button type="button" className="btn btn-outline-primary btn-sm" onClick={async () => { const ok = await requestCameraPermission(); if (!ok) { showToast("Izin kamera ditolak. Aktifkan permission kamera di browser.", "error"); return; } createCameraInputRef.current?.click(); }}>Ambil dari Kamera</button><button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => createGalleryInputRef.current?.click()}>Pilih dari Galeri</button></div><input ref={createCameraInputRef} type="file" accept="image/*,video/*" capture="environment" style={{ display: "none" }} onChange={(e) => { void onCreateDocPick(e.target.files?.[0]); }} /><input ref={createGalleryInputRef} type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={(e) => { void onCreateDocPick(e.target.files?.[0]); }} />{form.documentation_image_url && <a href={form.documentation_image_url} target="_blank" rel="noreferrer" className="small text-decoration-none">Lihat dokumentasi terupload</a>}{uploadingDoc && <div className="small text-secondary">Mengupload media... {uploadPercent}%{uploadRetrying ? " (Mencoba ulang upload...)" : ""}<div className="progress mt-1" style={{ height: "6px" }}><div className="progress-bar" role="progressbar" style={{ width: `${uploadPercent}%` }} /></div></div>}</>}<label className="task-label">Job (Prioritas)</label><FancySelect value={form.priority} onChange={(v) => setForm({ ...form, priority: v })} options={[{ value: "low", label: "Low" }, { value: "medium", label: "Medium" }, { value: "high", label: "High" }]} />{isTechnicianRole && <><label className="task-label">SPV</label><FancySelect value={form.supervisor_id} onChange={(v) => setForm({ ...form, supervisor_id: v })} options={supervisorUsers.map((s) => ({ value: String(s.id), label: s.name }))} /><label className="task-label">Staff</label><FancySelect value={form.staff_id} onChange={(v) => setForm({ ...form, staff_id: v })} options={staffs.map((s) => ({ value: String(s.id), label: s.name }))} /></>}{isSupervisorRole && <><label className="task-label">Staff (Opsional)</label><FancySelect value={form.staff_id} onChange={(v) => setForm({ ...form, staff_id: v })} options={[{ value: "", label: "-" }, ...staffs.map((s) => ({ value: String(s.id), label: s.name }))]} /><label className="task-label">Mekanik (Teknisi Opsional)</label><FancySelect value={form.technician_id} onChange={(v) => setForm({ ...form, technician_id: v })} options={[{ value: "", label: "-" }, ...technicians.map((te) => ({ value: String(te.id), label: te.name }))]} /></>}{isStaffRole && <><label className="task-label">SPV</label><FancySelect value={form.supervisor_id} onChange={(v) => setForm({ ...form, supervisor_id: v })} options={supervisorUsers.map((s) => ({ value: String(s.id), label: s.name }))} /><label className="task-label">Mekanik (Teknisi)</label><FancySelect value={form.technician_id} onChange={(v) => setForm({ ...form, technician_id: v })} options={technicians.map((te) => ({ value: String(te.id), label: te.name }))} /></>}<label className="task-label">Plan / Tanggal</label><DatePickerField value={form.due_date} onChange={(v) => setForm({ ...form, due_date: v })} /><label className="task-label">Progress Awal</label><FancySelect value={form.completion_percent} onChange={(v) => setForm({ ...form, completion_percent: v })} options={[{ value: "0", label: "Belum Mulai (0%)" }, { value: "50", label: "Sedang Berjalan (50%)" }, { value: "100", label: "Selesai (100%)" }]} /><div className="task-help">Field <strong>Status</strong> dan <strong>Aging</strong> otomatis dari sistem.</div>{formError && <div className="alert alert-danger py-2 mb-0">{formError}</div>}<button className="btn btn-primary" type="button" disabled={saving || uploadingDoc} onClick={submitTask}>{uploadingDoc ? `Mengupload media... ${uploadPercent}%` : saving ? "Menyimpan..." : "Simpan"}</button></div></div></div>}
+      {selectedTask && <div className="task-modal-backdrop" onClick={() => setSelectedTask(null)}><div className="task-modal card" onClick={(e) => e.stopPropagation()}><div className="card-body d-grid gap-2"><div className="d-flex justify-content-between align-items-center"><h5 className="mb-0">Detail Tugas</h5><button className="btn btn-light btn-sm" onClick={() => setSelectedTask(null)}><X size={16} /></button></div><div><strong>{selectedTask.title}</strong></div><div className="text-secondary">Keterangan: {selectedTask.description || "-"}</div><div className="text-secondary">Lokasi: {selectedTask.location}</div><div className="text-secondary">Supervisor: {supervisorName(selectedTask.supervisor_id)}</div><div className="text-secondary">Staff: {staffName(selectedTask.created_by_atasan_id)}</div><div className="text-secondary">Teknisi: {technicianName(selectedTask.technician_id)}</div><div className="text-secondary">Status: {selectedTask.status}</div><div className="text-secondary">Progress: {selectedTask.completion_percent}%</div>{selectedTask.documentation_image_url && <a href={selectedTask.documentation_image_url} target="_blank" rel="noreferrer" className="text-decoration-none">{isVideoUrl(selectedTask.documentation_image_url) ? <video src={selectedTask.documentation_image_url} controls style={{ width: "100%", maxHeight: 220, borderRadius: 10, border: "1px solid #dbe3f3" }} /> : <img src={selectedTask.documentation_image_url} alt="Dokumentasi tugas" style={{ width: "100%", maxHeight: 180, objectFit: "cover", borderRadius: 10, border: "1px solid #dbe3f3" }} />}</a>}{canUpdateTask && !isDesktop && selectedTaskMode === "update" && <><label className="task-label">Update Progres Pekerjaan</label><select className="form-select form-select-sm task-progress-select" value={pendingProgress} onChange={(e) => setPendingProgress(e.target.value)}><option value="0">Belum Mulai</option><option value="50">Sedang Berjalan</option><option value="100">Selesai</option></select>{isTechnicianRole && <><label className="task-label">Dokumentasi Update (Foto / Video)</label><div className="d-flex gap-2"><button type="button" className="btn btn-outline-primary btn-sm" onClick={async () => { if (isNativeBridgeAvailable()) { pickFromNative("update"); return; } const ok = await requestCameraPermission(); if (!ok) { showToast(isLikelyNativeWebView() ? "Bridge native belum siap. Tutup dan buka lagi aplikasi, lalu coba lagi." : "Izin kamera ditolak. Aktifkan permission kamera di browser.", "error"); return; } updateCameraInputRef.current?.click(); }}>Ambil dari Kamera</button><button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => { if (isNativeBridgeAvailable()) { pickFromNative("update"); return; } updateGalleryInputRef.current?.click(); }}>Pilih dari Galeri</button></div><input ref={updateCameraInputRef} type="file" accept="image/*,video/*" capture="environment" style={{ display: "none" }} onChange={(e) => { onUpdateDocPick(e.target.files?.[0]); }} /><input ref={updateGalleryInputRef} type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={(e) => { onUpdateDocPick(e.target.files?.[0]); }} />{updateMediaPreview && (isVideoUrl(updateMediaPreview) ? <video src={updateMediaPreview} controls style={{ width: "100%", maxHeight: 220, borderRadius: 10, border: "1px solid #dbe3f3" }} /> : <img src={updateMediaPreview} alt="Preview dokumentasi update" style={{ width: "100%", maxHeight: 180, objectFit: "cover", borderRadius: 10, border: "1px solid #dbe3f3" }} />)}{uploadingDoc && <div className="small text-secondary">Mengupload media... {uploadPercent}%{uploadRetrying ? " (Mencoba ulang upload...)" : ""}<div className="progress mt-1" style={{ height: "6px" }}><div className="progress-bar" role="progressbar" style={{ width: `${uploadPercent}%` }} /></div></div>}</>}<button type="button" className="btn btn-primary btn-sm" onClick={async () => { const progress = Number(pendingProgress); const status = progress >= 100 ? "completed" : progress > 0 ? "in_progress" : "assigned_to_technician"; try { let documentationUrl = selectedTask.documentation_image_url || ""; if (isTechnicianRole && updateMediaFile) { const uploaded = await uploadDocumentationFromFile(updateMediaFile, selectedTask.id); if (!uploaded) return; documentationUrl = uploaded; } if (isTechnicianRole && documentationUrl !== (selectedTask.documentation_image_url || "")) { await api.updateTask(selectedTask.id, { documentation_image_url: documentationUrl }); } await api.updateTaskProgress(selectedTask.id, { completion_percent: progress }); await api.updateTaskStatus(selectedTask.id, { status }); await onDone(); setSelectedTask(null); setUpdateMediaFile(null); setUpdateMediaPreview(""); showToast("Progres task berhasil diperbarui."); } catch (err) { showToast((err as Error).message || "Gagal update progres task.", "error"); } }}>Konfirmasi Update</button></>}</div></div></div>}
+      {canCreateTask && showCreateModal && <div className="task-modal-backdrop" onClick={() => setShowCreateModal(false)}><div className="task-modal card task-form" onClick={(e) => e.stopPropagation()}><div className="card-body d-grid gap-2"><div className="d-flex justify-content-between align-items-center"><h5 className="mb-0">Buat Tugas</h5><button className="btn btn-light btn-sm" onClick={() => setShowCreateModal(false)}><X size={16} /></button></div><label className="task-label">Detail Job</label><input className="form-control" placeholder="Isi detail job" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /><label className="task-label">Keterangan</label><textarea className="form-control" placeholder="Isi keterangan pekerjaan" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /><label className="task-label">Customer</label><input className="form-control" placeholder="Nama customer" value={form.customer} onChange={(e) => setForm({ ...form, customer: e.target.value })} /><label className="task-label">Lokasi</label><input className="form-control" placeholder="Lokasi pekerjaan" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />{canUploadTaskMedia && <><label className="task-label">Dokumentasi (Foto / Video)</label><div className="d-flex gap-2"><button type="button" className="btn btn-outline-primary btn-sm" onClick={async () => { if (isNativeBridgeAvailable()) { pickFromNative("create"); return; } const ok = await requestCameraPermission(); if (!ok) { showToast(isLikelyNativeWebView() ? "Bridge native belum siap. Tutup dan buka lagi aplikasi, lalu coba lagi." : "Izin kamera ditolak. Aktifkan permission kamera di browser.", "error"); return; } createCameraInputRef.current?.click(); }}>Ambil dari Kamera</button><button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => { if (isNativeBridgeAvailable()) { pickFromNative("create"); return; } createGalleryInputRef.current?.click(); }}>Pilih dari Galeri</button></div><input ref={createCameraInputRef} type="file" accept="image/*,video/*" capture="environment" style={{ display: "none" }} onChange={(e) => { void onCreateDocPick(e.target.files?.[0]); }} /><input ref={createGalleryInputRef} type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={(e) => { void onCreateDocPick(e.target.files?.[0]); }} />{form.documentation_image_url && <a href={form.documentation_image_url} target="_blank" rel="noreferrer" className="small text-decoration-none">Lihat dokumentasi terupload</a>}{uploadingDoc && <div className="small text-secondary">Mengupload media... {uploadPercent}%{uploadRetrying ? " (Mencoba ulang upload...)" : ""}<div className="progress mt-1" style={{ height: "6px" }}><div className="progress-bar" role="progressbar" style={{ width: `${uploadPercent}%` }} /></div></div>}</>}<label className="task-label">Job (Prioritas)</label><FancySelect value={form.priority} onChange={(v) => setForm({ ...form, priority: v })} options={[{ value: "low", label: "Low" }, { value: "medium", label: "Medium" }, { value: "high", label: "High" }]} />{isTechnicianRole && <><label className="task-label">SPV</label><FancySelect value={form.supervisor_id} onChange={(v) => setForm({ ...form, supervisor_id: v })} options={supervisorUsers.map((s) => ({ value: String(s.id), label: s.name }))} /><label className="task-label">Staff</label><FancySelect value={form.staff_id} onChange={(v) => setForm({ ...form, staff_id: v })} options={staffs.map((s) => ({ value: String(s.id), label: s.name }))} /></>}{isSupervisorRole && <><label className="task-label">Staff (Opsional)</label><FancySelect value={form.staff_id} onChange={(v) => setForm({ ...form, staff_id: v })} options={[{ value: "", label: "-" }, ...staffs.map((s) => ({ value: String(s.id), label: s.name }))]} /><label className="task-label">Mekanik (Teknisi Opsional)</label><FancySelect value={form.technician_id} onChange={(v) => setForm({ ...form, technician_id: v })} options={[{ value: "", label: "-" }, ...technicians.map((te) => ({ value: String(te.id), label: te.name }))]} /></>}{isStaffRole && <><label className="task-label">SPV</label><FancySelect value={form.supervisor_id} onChange={(v) => setForm({ ...form, supervisor_id: v })} options={supervisorUsers.map((s) => ({ value: String(s.id), label: s.name }))} /><label className="task-label">Mekanik (Teknisi)</label><FancySelect value={form.technician_id} onChange={(v) => setForm({ ...form, technician_id: v })} options={technicians.map((te) => ({ value: String(te.id), label: te.name }))} /></>}<label className="task-label">Plan / Tanggal</label><DatePickerField value={form.due_date} onChange={(v) => setForm({ ...form, due_date: v })} /><label className="task-label">Progress Awal</label><FancySelect value={form.completion_percent} onChange={(v) => setForm({ ...form, completion_percent: v })} options={[{ value: "0", label: "Belum Mulai (0%)" }, { value: "50", label: "Sedang Berjalan (50%)" }, { value: "100", label: "Selesai (100%)" }]} /><div className="task-help">Field <strong>Status</strong> dan <strong>Aging</strong> otomatis dari sistem.</div>{formError && <div className="alert alert-danger py-2 mb-0">{formError}</div>}<button className="btn btn-primary" type="button" disabled={saving || uploadingDoc} onClick={submitTask}>{uploadingDoc ? `Mengupload media... ${uploadPercent}%` : saving ? "Menyimpan..." : "Simpan"}</button></div></div></div>}
       {confirmDeleteTask && <div className="task-modal-backdrop task-confirm-backdrop" onClick={() => setConfirmDeleteTask(null)}><div className="task-confirm-modal card" onClick={(e) => e.stopPropagation()}><div className="card-body"><h5 className="mb-2">Hapus Tugas</h5><p className="mb-3">Yakin hapus tugas <strong>{confirmDeleteTask.title}</strong>?</p><div className="task-confirm-actions"><button type="button" className="btn btn-light" onClick={() => setConfirmDeleteTask(null)}>Batal</button><button type="button" className="btn btn-danger" onClick={() => { void removeTask(confirmDeleteTask.id); }}>Ya, Hapus</button></div></div></div></div>}
     </section>
   );
 }
+
+
+
+
 
 
 

@@ -4,6 +4,7 @@ type Props = { children: ReactNode };
 type State = { hasError: boolean };
 
 export class AppErrorBoundary extends Component<Props, State> {
+  declare props: Readonly<Props>;
   state: State = { hasError: false };
 
   static getDerivedStateFromError() {
@@ -31,4 +32,3 @@ export class AppErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
-

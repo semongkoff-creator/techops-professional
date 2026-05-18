@@ -1,6 +1,16 @@
 import { pool } from "../db/pool.js";
 
-async function sendPushOneSignal({ token, title, body }) {
+let notificationSchemaReady = false;
+async function ensureNotificationSchema() {
+  if (notificationSchemaReady) return;
+  await pool.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS push_token TEXT", []);
+  await pool.execute("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS sender_id BIGINT NULL", []);
+  await pool.execute("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS sender_role VARCHAR(32) NULL", []);
+  await pool.execute("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS task_id BIGINT NULL", []);
+  notificationSchemaReady = true;
+}
+
+async function sendPushOneSignal({ token, title, body, data }) {
   const appId = process.env.ONESIGNAL_APP_ID;
   const restApiKey = process.env.ONESIGNAL_REST_API_KEY;
   if (!appId || !restApiKey || !token) return false;
@@ -17,6 +27,7 @@ async function sendPushOneSignal({ token, title, body }) {
         include_player_ids: [token],
         headings: { en: title, id: title },
         contents: { en: body, id: body },
+        data: data || {},
       }),
     });
     return res.ok;
@@ -25,7 +36,7 @@ async function sendPushOneSignal({ token, title, body }) {
   }
 }
 
-async function sendPushLegacy({ token, title, body }) {
+async function sendPushLegacy({ token, title, body, data }) {
   const serverKey = process.env.FCM_SERVER_KEY;
   if (!serverKey || !token) return false;
   try {
@@ -42,6 +53,7 @@ async function sendPushLegacy({ token, title, body }) {
           body,
           sound: "default",
         },
+        data: data || {},
         priority: "high",
       }),
     });
@@ -51,19 +63,36 @@ async function sendPushLegacy({ token, title, body }) {
   }
 }
 
-export async function createNotification({ userId, title, message, type, referenceType, referenceId }) {
-  await pool.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS push_token TEXT", []);
+export async function createNotification({
+  userId,
+  title,
+  message,
+  type,
+  referenceType,
+  referenceId,
+  senderId = null,
+  senderRole = null,
+  taskId = null,
+}) {
+  await ensureNotificationSchema();
   await pool.execute(
-    `INSERT INTO notifications (user_id, title, message, is_read, type, reference_type, reference_id, created_at)
-     VALUES (?, ?, ?, FALSE, ?, ?, ?, NOW())`,
-    [userId, title, message, type, referenceType, referenceId],
+    `INSERT INTO notifications (user_id, title, message, is_read, type, reference_type, reference_id, sender_id, sender_role, task_id, created_at)
+     VALUES (?, ?, ?, FALSE, ?, ?, ?, ?, ?, ?, NOW())`,
+    [userId, title, message, type, referenceType, referenceId, senderId, senderRole, taskId],
   );
   const [rows] = await pool.execute("SELECT push_token FROM users WHERE id=? LIMIT 1", [userId]);
   const token = rows?.[0]?.push_token || null;
+  const pushData = {
+    type: type || "general",
+    reference_type: referenceType || "",
+    reference_id: referenceId ? String(referenceId) : "",
+    task_id: taskId ? String(taskId) : "",
+    deep_link: taskId ? `/tasks?task_id=${taskId}` : referenceType === "report" ? "/reports" : "/notifications",
+  };
 
   // Primary: OneSignal (if configured). Fallback: legacy FCM.
-  const sentByOneSignal = await sendPushOneSignal({ token, title, body: message });
+  const sentByOneSignal = await sendPushOneSignal({ token, title, body: message, data: pushData });
   if (!sentByOneSignal) {
-    await sendPushLegacy({ token, title, body: message });
+    await sendPushLegacy({ token, title, body: message, data: pushData });
   }
 }

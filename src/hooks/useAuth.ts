@@ -2,6 +2,18 @@ import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import type { User } from "../types";
 
+const AUTH_BOOTSTRAP_TIMEOUT_MS = 10000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error("auth_timeout")), ms);
+    promise
+      .then((value) => resolve(value))
+      .catch((err) => reject(err))
+      .finally(() => window.clearTimeout(timer));
+  });
+}
+
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -19,20 +31,20 @@ export function useAuth() {
       try {
         if (token) {
           try {
-            const me = await api.me();
+            const me = await withTimeout(api.me(), AUTH_BOOTSTRAP_TIMEOUT_MS);
             setUser(me as User);
             return;
           } catch {
             // Token local bisa kadaluarsa; coba restore dari refresh cookie.
-            await api.refresh();
-            const me = await api.me();
+            await withTimeout(api.refresh(), AUTH_BOOTSTRAP_TIMEOUT_MS);
+            const me = await withTimeout(api.me(), AUTH_BOOTSTRAP_TIMEOUT_MS);
             setUser(me as User);
             return;
           }
         }
         // Silent login from refresh cookie (so user doesn't need to login again)
-        await api.refresh();
-        const me = await api.me();
+        await withTimeout(api.refresh(), AUTH_BOOTSTRAP_TIMEOUT_MS);
+        const me = await withTimeout(api.me(), AUTH_BOOTSTRAP_TIMEOUT_MS);
         setUser(me as User);
       } catch {
         localStorage.removeItem("token");
