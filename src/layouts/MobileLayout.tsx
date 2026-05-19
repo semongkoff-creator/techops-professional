@@ -31,7 +31,7 @@ export function MobileLayout({
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
-  const latest = notifications.slice(0, 8);
+  const latestUnread = notifications.filter((n) => !isRead(n)).slice(0, 8);
   const isRead = (n: Notification) => {
     const raw = (n as Notification & { is_read: unknown }).is_read;
     return raw === true || raw === 1 || raw === "1" || raw === "true" || raw === "t";
@@ -73,7 +73,7 @@ export function MobileLayout({
                     <button type="button" className="btn btn-link btn-sm p-0" onClick={() => { void onReadAllNotifications?.(); }}>Mark all</button>
                   </div>
                   <div className="notif-popover-body">
-                    {latest.length === 0 ? <div className="small text-secondary">Belum ada notifikasi.</div> : latest.map((n) => (
+                    {latestUnread.length === 0 ? <div className="small text-secondary">Belum ada notifikasi belum dibaca.</div> : latestUnread.map((n) => (
                       <button
                         type="button"
                         key={n.id}

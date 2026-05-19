@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "392167898688",
+    "project_id": "tecops-2b377",
+    "storage_bucket": "tecops-2b377.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:392167898688:android:e07099c39cbd03d102a9a5",
+        "android_client_info": {
+          "package_name": "com.satriapiranti.techops.techops_hybrid"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDTRNRCMiIBs6hoc1q8FWFBY0dANnUhGcQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

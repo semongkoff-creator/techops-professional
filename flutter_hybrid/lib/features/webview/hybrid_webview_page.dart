@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
@@ -138,33 +139,7 @@ class _HybridWebViewPageState extends State<HybridWebViewPage>
   }
 
   Future<void> _pickMedia() async {
-    final picker = ImagePicker();
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              title: const Text('Ambil dari Kamera'),
-              onTap: () => Navigator.pop(ctx, ImageSource.camera),
-            ),
-            ListTile(
-              title: const Text('Pilih dari Galeri'),
-              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (source == null) return;
-
-    final XFile? file;
-    if (source == ImageSource.camera) {
-      file = await picker.pickImage(source: source, imageQuality: 85);
-    } else {
-      file = await picker.pickMedia();
-    }
+    final XFile? file = await _pickMediaFile();
     if (file == null) return;
 
     final bytes = await File(file.path).readAsBytes();
@@ -180,6 +155,40 @@ class _HybridWebViewPageState extends State<HybridWebViewPage>
     await _controller.runJavaScript(
       "window.dispatchEvent(new CustomEvent('native-media', { detail: $payload }));",
     );
+  }
+
+  Future<XFile?> _pickMediaFile() async {
+    final picker = ImagePicker();
+    final source = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              title: const Text('Ambil Foto dari Kamera'),
+              onTap: () => Navigator.pop(ctx, 'camera_image'),
+            ),
+            ListTile(
+              title: const Text('Ambil Video dari Kamera'),
+              onTap: () => Navigator.pop(ctx, 'camera_video'),
+            ),
+            ListTile(
+              title: const Text('Pilih dari Galeri'),
+              onTap: () => Navigator.pop(ctx, 'gallery'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return null;
+
+    if (source == 'camera_image') {
+      return picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+    }
+    if (source == 'camera_video') {
+      return picker.pickVideo(source: ImageSource.camera, maxDuration: const Duration(minutes: 5));
+    }
+    return picker.pickMedia();
   }
 
   void _showInAppBanner({
@@ -206,33 +215,6 @@ class _HybridWebViewPageState extends State<HybridWebViewPage>
     );
   }
 
-  Future<XFile?> _pickMediaFile() async {
-    final picker = ImagePicker();
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              title: const Text('Ambil dari Kamera'),
-              onTap: () => Navigator.pop(ctx, ImageSource.camera),
-            ),
-            ListTile(
-              title: const Text('Pilih dari Galeri'),
-              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (source == null) return null;
-
-    if (source == ImageSource.camera) {
-      return picker.pickImage(source: source, imageQuality: 85);
-    }
-    return picker.pickMedia();
-  }
-
   Future<void> _pickAndUploadTaskMedia(Map<String, dynamic> data) async {
     final XFile? picked = await _pickMediaFile();
     if (picked == null) return;
@@ -248,15 +230,27 @@ class _HybridWebViewPageState extends State<HybridWebViewPage>
 
     try {
       final uri = Uri.parse(uploadUrl);
+      final mimeType = picked.mimeType ?? 'application/octet-stream';
       final request = http.MultipartRequest('POST', uri)
         ..headers['Authorization'] = 'Bearer $bearerToken'
+        ..headers['Accept'] = 'application/json'
         ..headers['x-device-id'] = deviceId
-        ..fields['task_id'] = taskId
-        ..files.add(await http.MultipartFile.fromPath('media', picked.path));
+        ..files.add(
+          await http.MultipartFile.fromPath(
+            'media',
+            picked.path,
+            contentType: _tryParseMediaType(mimeType),
+          ),
+        );
+
+      if (taskId.isNotEmpty) {
+        request.fields['task_id'] = taskId;
+      }
 
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
-      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      final bodyText = response.body;
+      final Map<String, dynamic> decoded = _safeJsonMap(bodyText);
 
       if (response.statusCode >= 200 &&
           response.statusCode < 300 &&
@@ -271,21 +265,42 @@ class _HybridWebViewPageState extends State<HybridWebViewPage>
       } else {
         final payload = jsonEncode({
           'ok': false,
-          'message': decoded['message'] ?? 'Upload failed',
+          'message': decoded['message'] ??
+              'Upload gagal (${response.statusCode}). Pastikan login masih aktif dan file valid.',
         });
         await _controller.runJavaScript(
           "window.dispatchEvent(new CustomEvent('native-upload-result', { detail: $payload }));",
         );
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('NATIVE_UPLOAD_ERROR: $e');
       final payload = jsonEncode({
         'ok': false,
-        'message': 'Upload native gagal.',
+        'message': 'Upload native gagal. Coba ulang atau login ulang.',
       });
       await _controller.runJavaScript(
         "window.dispatchEvent(new CustomEvent('native-upload-result', { detail: $payload }));",
       );
     }
+  }
+
+  Map<String, dynamic> _safeJsonMap(String raw) {
+    try {
+      final parsed = jsonDecode(raw);
+      if (parsed is Map<String, dynamic>) return parsed;
+      return <String, dynamic>{};
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
+
+  MediaType? _tryParseMediaType(String value) {
+    final chunks = value.split('/');
+    if (chunks.length != 2) return null;
+    final type = chunks[0].trim();
+    final subtype = chunks[1].trim();
+    if (type.isEmpty || subtype.isEmpty) return null;
+    return MediaType(type, subtype);
   }
 
   Future<void> _pushPendingNativeEventsToWeb() async {

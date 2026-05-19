@@ -167,6 +167,7 @@ export async function createTask(req, res) {
   const notif = buildTaskAssignedNotification({
     senderRole: req.user.role,
     senderName: req.user.name,
+    action: "create",
   });
 
   await notifyUsers(targetUserIds.filter((id) => Number(id) !== Number(req.user.id)), {
@@ -348,6 +349,26 @@ export async function updateTask(req, res) {
     oldValue: task,
     newValue: { title, description, customer, location, priority, supervisor_id, documentation_image_url, due_date, completion_percent: pct, status: nextStatus },
   });
+
+  if (req.user.role === "supervisor" || req.user.role === "staff" || req.user.role === "atasan") {
+    const notif = buildTaskAssignedNotification({
+      senderRole: req.user.role,
+      senderName: req.user.name,
+      action: "update",
+    });
+    const targets = req.user.role === "supervisor"
+      ? [req.body.technician_id ?? task.technician_id, task.created_by_atasan_id]
+      : [req.body.technician_id ?? task.technician_id];
+    await notifyUsers(targets.filter((id) => Number(id) !== Number(req.user.id)), {
+      ...notif,
+      referenceType: "task",
+      referenceId: Number(req.params.id),
+      senderId: req.user.id,
+      senderRole: req.user.role,
+      taskId: Number(req.params.id),
+    });
+  }
+
   return res.json({ message: "Task updated" });
 }
 

@@ -9,23 +9,24 @@ function withPak(name) {
   return clean.toLowerCase().startsWith("pak ") ? clean : `Pak ${clean}`;
 }
 
-export function buildTaskAssignedNotification({ senderRole, senderName }) {
+export function buildTaskAssignedNotification({ senderRole, senderName, action = "create" }) {
   const role = normalizeRole(senderRole);
   const title = "Tugas Baru";
+  const actionText = action === "update" ? "tugas/update" : "tugas";
 
   if (role === "supervisor") {
     return {
       title,
-      message: `Ada tugas dari ${withPak(senderName)}, tolong cek di tugas ya.`,
-      type: "task_created_by_supervisor",
+      message: `Ada ${actionText} dari ${withPak(senderName)}, tolong cek di tugas ya.`,
+      type: action === "update" ? "task_updated_by_supervisor" : "task_created_by_supervisor",
     };
   }
 
   if (role === "staff" || role === "atasan") {
     return {
       title,
-      message: `Ada tugas dari ${senderName || "Staff"} nih, cek di tugas ya.`,
-      type: "task_created_by_staff",
+      message: `Ada ${actionText} dari ${senderName || "Staff"} nih, cek di tugas ya.`,
+      type: action === "update" ? "task_updated_by_staff" : "task_created_by_staff",
     };
   }
 
@@ -70,3 +71,25 @@ export function buildTaskUpdatedNotification({
   };
 }
 
+export function buildReportSubmittedNotification({ senderRole, senderName }) {
+  const role = normalizeRole(senderRole);
+  if (role === "teknisi") {
+    return {
+      title: "Laporan Baru dari Teknisi",
+      message: `${senderName || "Mekanik"} sudah kirim laporan selesai.`,
+      type: "report_submitted_by_technician",
+    };
+  }
+  if (role === "staff" || role === "atasan") {
+    return {
+      title: "Laporan Baru dari Staff",
+      message: `${senderName || "Staff"} sudah kirim laporan selesai.`,
+      type: "report_submitted_by_staff",
+    };
+  }
+  return {
+    title: "Laporan Baru",
+    message: "Ada laporan selesai baru, cek di laporan ya.",
+    type: "report_submitted",
+  };
+}

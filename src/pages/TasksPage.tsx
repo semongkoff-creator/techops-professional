@@ -168,9 +168,9 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
   const [updateMediaPreview, setUpdateMediaPreview] = useState<string>("");
   const [updateMediaFile, setUpdateMediaFile] = useState<File | null>(null);
   const [nativeTarget, setNativeTarget] = useState<"create" | "edit" | "update" | null>(null);
-  const canCreateTask = user.role === "supervisor" || user.role === "staff" || user.role === "teknisi" || user.role === "technician";
+  const canCreateTask = user.role === "supervisor" || user.role === "staff" || user.role === "atasan";
   const canAssign = user.role === "staff";
-  const canUpdateTask = user.role === "staff" || user.role === "teknisi" || user.role === "technician";
+  const canUpdateTask = user.role === "supervisor" || user.role === "staff" || user.role === "atasan" || user.role === "teknisi" || user.role === "technician";
   const isTechnicianCreate = user.role === "teknisi" || user.role === "technician";
   const isSupervisorRole = user.role === "supervisor";
   const isStaffRole = user.role === "staff" || user.role === "atasan";
@@ -516,7 +516,7 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
     <div className={`task-inline-menu compact task-action-menu-portal ${activeTaskMenuPos?.openUp ? "open-up" : "open-down"}`}>
       <button type="button" onClick={() => { setSelectedTaskMode(canUpdateTask ? "update" : "view"); setSelectedTask(task); closeTaskMenu(); }}><Eye size={14} /> Lihat</button>
       {canUpdateTask && <button type="button" onClick={() => { setSelectedTaskMode("update"); setSelectedTask(task); closeTaskMenu(); }}><Pencil size={14} /> Update Task</button>}
-      {(user.role === "supervisor") && <button type="button" onClick={() => { openEditTask(task); closeTaskMenu(); }}><Pencil size={14} /> Edit</button>}
+      {(user.role === "supervisor" || user.role === "staff" || user.role === "atasan") && <button type="button" onClick={() => { openEditTask(task); closeTaskMenu(); }}><Pencil size={14} /> Edit</button>}
       {(user.role === "supervisor") && <button type="button" className="danger" onClick={() => { setConfirmDeleteTask(task); closeTaskMenu(); }}><Trash2 size={14} /> Hapus</button>}
     </div>
   );
