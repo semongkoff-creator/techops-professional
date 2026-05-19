@@ -4,6 +4,8 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -15,6 +17,12 @@ const String kWebAppUrl = String.fromEnvironment(
   'WEB_APP_URL',
   defaultValue: 'https://techops-professional.vercel.app/',
 );
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  await NotificationService.instance.handleBackgroundMessage(message);
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,6 +39,17 @@ Future<void> main() async {
     await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   } catch (e, stack) {
     debugPrint('STARTUP ERROR: $e');
+    debugPrint('$stack');
+  }
+
+  try {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    await NotificationService.instance.initialize();
+    await PermissionManager.instance.requestBootstrapPermissions();
+    await NotificationService.instance.handleInitialMessage();
+  } catch (e, stack) {
+    debugPrint('NOTIFICATION BOOTSTRAP ERROR: $e');
     debugPrint('$stack');
   }
 
@@ -78,14 +97,6 @@ class _SplashGateState extends State<SplashGate> {
   }
 
   Future<void> _init() async {
-    try {
-      await NotificationService.instance.initialize();
-      await PermissionManager.instance.requestBootstrapPermissions();
-    } catch (e, stack) {
-      debugPrint('Bootstrap service init failed: $e');
-      debugPrint('$stack');
-    }
-
     final status = await Connectivity().checkConnectivity();
     _online = !status.contains(ConnectivityResult.none);
 

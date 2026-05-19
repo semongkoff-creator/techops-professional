@@ -84,7 +84,7 @@ export function DesktopLayout({
           </div>
           <div className="inline">
             <button className="bell" onClick={onToggleTheme} aria-label="Toggle theme">{theme === "light" ? <Moon size={18} /> : <Sun size={18} />}</button>
-            <div ref={bellRef} style={{ position: "relative" }}>
+            <div ref={bellRef} className={`topbar-bell-wrap${bellOpen ? " open" : ""}`}>
               <button className="bell" onClick={() => setBellOpen((v) => !v)}><Bell size={18} /> {unread}</button>
               {bellOpen && (
                 <div className="notif-popover">

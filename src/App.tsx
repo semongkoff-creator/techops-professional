@@ -26,7 +26,6 @@ export default function App() {
   const [staffs, setStaffs] = useState<User[]>([]);
   const [atasans, setAtasans] = useState<User[]>([]);
   const [summary, setSummary] = useState<{ taskStats: Array<{ status: string; total: number }>; reportStats: Array<{ report_status: string; total: number }> } | null>(null);
-  const [pushHealth, setPushHealth] = useState<{ summary: { total_users: number; token_active: number; token_missing: number; last_failed: number }; items: Array<{ id: number; name: string; username: string; role: string; token_status: "active" | "missing"; last_audit_action?: string | null }> } | null>(null);
   const [theme, setTheme] = useState<Theme>("light");
   const [markingAllNotifications, setMarkingAllNotifications] = useState(false);
   const [onlineTechIds, setOnlineTechIds] = useState<number[]>([]);
@@ -65,12 +64,11 @@ export default function App() {
 
   async function reload() {
     if (!user) return;
-    const [t, r, n, ds, ph, spv, tek, staffUsers, atasanUsers, allUsers] = await Promise.allSettled([
+    const [t, r, n, ds, spv, tek, staffUsers, atasanUsers, allUsers] = await Promise.allSettled([
       api.tasks(),
       api.reports(),
       api.notifications(),
       api.dashboardSummary(),
-      api.pushTokenHealth(50),
       api.users("supervisor"),
       api.users("teknisi"),
       api.users("staff"),
@@ -82,7 +80,6 @@ export default function App() {
     if (r.status === "fulfilled") setReports(r.value as Report[]);
     if (n.status === "fulfilled") setNotifications(n.value as Notification[]);
     if (ds.status === "fulfilled") setSummary(ds.value as { taskStats: Array<{ status: string; total: number }>; reportStats: Array<{ report_status: string; total: number }> });
-    if (ph.status === "fulfilled") setPushHealth(ph.value as { summary: { total_users: number; token_active: number; token_missing: number; last_failed: number }; items: Array<{ id: number; name: string; username: string; role: string; token_status: "active" | "missing"; last_audit_action?: string | null }> });
 
     const usersFallback = allUsers.status === "fulfilled" ? (allUsers.value as User[]) : [];
     const supervisorsDataRaw = spv.status === "fulfilled"
@@ -374,7 +371,7 @@ export default function App() {
   const isDesktop = isDesktopViewport;
 
   const content = (() => {
-    if (page === "dashboard") return <DashboardPage isDesktop={isDesktop} user={user} summary={summary} pushHealth={pushHealth} tasks={tasks} reports={reports} technicians={technicians} onlineTechIds={onlineTechIds} onJump={setPage} />;
+    if (page === "dashboard") return <DashboardPage isDesktop={isDesktop} user={user} summary={summary} tasks={tasks} reports={reports} technicians={technicians} onlineTechIds={onlineTechIds} onJump={setPage} />;
     if (page === "tasks") return <TasksPage isDesktop={isDesktop} user={user} tasks={tasks} supervisors={supervisors} technicians={technicians} staffs={staffs} atasans={atasans} onDone={reload} />;
     if (page === "reports") return <ReportsPage isDesktop={isDesktop} user={user} reports={reports} tasks={tasks} supervisors={supervisors} onDone={reload} />;
     if (page === "analytics") return <AnalyticsPage tasks={tasks} technicians={technicians} />;

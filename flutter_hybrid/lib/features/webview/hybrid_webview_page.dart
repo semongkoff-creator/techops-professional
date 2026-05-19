@@ -95,18 +95,21 @@ class _HybridWebViewPageState extends State<HybridWebViewPage>
             final title = (data['title'] as String? ?? 'Notifikasi').trim();
             final message = (data['message'] as String? ?? '').trim();
             if (message.isNotEmpty) {
-              NotificationService.instance.emitInAppBanner(
-                title: title,
-                message: message,
-                type: data['notif_type'] as String?,
-                taskId: int.tryParse('${data['task_id'] ?? ''}'),
-              );
               _showInAppBanner(title: title, message: message);
             }
           }
           if (type == 'set_unread_count') {
             final count = int.tryParse('${data['count'] ?? 0}') ?? 0;
-            NotificationService.instance.setUnreadCount(count);
+            await NotificationService.instance.setBadgeCount(count);
+          }
+          if (type == 'clear_badge') {
+            await NotificationService.instance.clearBadge();
+          }
+          if (type == 'sync_push_token') {
+            await _syncPushTokenFromWebSession(data);
+          }
+          if (type == 'clear_push_token') {
+            await _clearPushTokenFromWebSession(data);
           }
         },
       )
@@ -130,6 +133,7 @@ class _HybridWebViewPageState extends State<HybridWebViewPage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _pushPendingNativeEventsToWeb();
+      _requestPushSyncFromWeb();
     }
   }
 
@@ -299,6 +303,39 @@ class _HybridWebViewPageState extends State<HybridWebViewPage>
         }
       }));
     ''');
+    await _requestPushSyncFromWeb();
+  }
+
+  Future<void> _requestPushSyncFromWeb() async {
+    await _controller.runJavaScript('''
+      window.dispatchEvent(new CustomEvent('native-push-sync-request', {
+        detail: { source: 'flutter_native' }
+      }));
+    ''');
+  }
+
+  Future<void> _syncPushTokenFromWebSession(Map<String, dynamic> data) async {
+    final apiBaseUrl = (data['api_base_url'] as String? ?? '').trim();
+    final accessToken = (data['access_token'] as String? ?? '').trim();
+    final deviceId = (data['device_id'] as String? ?? '').trim();
+    if (apiBaseUrl.isEmpty || accessToken.isEmpty || deviceId.isEmpty) return;
+    await NotificationService.instance.syncPushTokenToBackend(
+      apiBaseUrl: apiBaseUrl,
+      accessToken: accessToken,
+      deviceId: deviceId,
+    );
+  }
+
+  Future<void> _clearPushTokenFromWebSession(Map<String, dynamic> data) async {
+    final apiBaseUrl = (data['api_base_url'] as String? ?? '').trim();
+    final accessToken = (data['access_token'] as String? ?? '').trim();
+    final deviceId = (data['device_id'] as String? ?? '').trim();
+    if (apiBaseUrl.isEmpty || accessToken.isEmpty || deviceId.isEmpty) return;
+    await NotificationService.instance.clearPushTokenFromBackend(
+      apiBaseUrl: apiBaseUrl,
+      accessToken: accessToken,
+      deviceId: deviceId,
+    );
   }
 
   @override

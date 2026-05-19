@@ -1,11 +1,9 @@
-import { useState } from "react";
 import type { Report, Task } from "../types";
 import type { User } from "../types";
 import type { Page } from "../types/app";
 import { ASSET_BASE } from "../services/api";
 
-export function DashboardPage({ isDesktop, user, summary, pushHealth, tasks, reports, technicians, onlineTechIds, onJump }: { isDesktop: boolean; user: User; summary: { taskStats: Array<{ status: string; total: number }>; reportStats: Array<{ report_status: string; total: number }> } | null; pushHealth: { summary: { total_users: number; token_active: number; token_missing: number; last_failed: number }; items: Array<{ id: number; name: string; username: string; role: string; token_status: "active" | "missing"; last_audit_action?: string | null }> } | null; tasks: Task[]; reports: Report[]; technicians: User[]; onlineTechIds: number[]; onJump: (p: Page) => void; }) {
-  const [showPushDetails, setShowPushDetails] = useState(false);
+export function DashboardPage({ isDesktop, user, summary, tasks, reports, technicians, onlineTechIds, onJump }: { isDesktop: boolean; user: User; summary: { taskStats: Array<{ status: string; total: number }>; reportStats: Array<{ report_status: string; total: number }> } | null; tasks: Task[]; reports: Report[]; technicians: User[]; onlineTechIds: number[]; onJump: (p: Page) => void; }) {
   const openTask = tasks.filter((t) => !["closed", "completed"].includes(t.status)).length;
   const avgProgress = tasks.length ? Math.round(tasks.reduce((a, b) => a + b.completion_percent, 0) / tasks.length) : 0;
   const formatDate = (v: string) => (v ? new Date(v).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" }) : "-");
@@ -84,45 +82,6 @@ export function DashboardPage({ isDesktop, user, summary, pushHealth, tasks, rep
             <span className={`kpi-trend ${pendingTrend === "up" ? "down" : "up"}`}>{pendingTrend === "up" ? "↘" : "↗"} Dibanding minggu lalu</span>
           </div>
         </div>
-        {isMonitoringRole && pushHealth && (
-          <div className="card dashboard-pro-card mt-3">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <h5 className="mb-0">Push Token Health</h5>
-                <button className="btn btn-sm btn-outline-primary" onClick={() => setShowPushDetails((v) => !v)}>
-                  {showPushDetails ? "Hide Details" : "View Details"}
-                </button>
-              </div>
-              <div className="row g-2">
-                <div className="col-3"><div className="small text-secondary">Users</div><strong>{pushHealth.summary.total_users}</strong></div>
-                <div className="col-3"><div className="small text-secondary">Active</div><strong className="text-success">{pushHealth.summary.token_active}</strong></div>
-                <div className="col-3"><div className="small text-secondary">Missing</div><strong className="text-warning">{pushHealth.summary.token_missing}</strong></div>
-                <div className="col-3"><div className="small text-secondary">Failed</div><strong className="text-danger">{pushHealth.summary.last_failed}</strong></div>
-              </div>
-              {showPushDetails && (
-                <div className="table-wrap mt-3">
-                  <table className="table table-sm align-middle">
-                    <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Last Audit</th></tr></thead>
-                    <tbody>
-                      {pushHealth.items
-                        .filter((i) => i.token_status === "missing" || i.last_audit_action === "push_token_update_failed")
-                        .slice(0, 12)
-                        .map((i) => (
-                          <tr key={i.id}>
-                            <td>{i.name} <span className="text-secondary small">(@{i.username})</span></td>
-                            <td>{i.role}</td>
-                            <td>{i.token_status === "missing" ? <span className="badge text-bg-warning">missing</span> : <span className="badge text-bg-success">active</span>}</td>
-                            <td>{i.last_audit_action || "-"}</td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         <div className="dashboard-pro-grid">
           <div className="card dashboard-pro-card">
             <div className="card-body">
@@ -252,19 +211,6 @@ export function DashboardPage({ isDesktop, user, summary, pushHealth, tasks, rep
             </div>
           </div>
         </div>
-        {pushHealth && (
-          <div className="card">
-            <div className="card-body">
-              <h6 className="mb-2">Push Token Health</h6>
-              <div className="row g-2">
-                <div className="col-3"><small className="text-secondary">Users</small><div><strong>{pushHealth.summary.total_users}</strong></div></div>
-                <div className="col-3"><small className="text-secondary">Active</small><div><strong className="text-success">{pushHealth.summary.token_active}</strong></div></div>
-                <div className="col-3"><small className="text-secondary">Missing</small><div><strong className="text-warning">{pushHealth.summary.token_missing}</strong></div></div>
-                <div className="col-3"><small className="text-secondary">Failed</small><div><strong className="text-danger">{pushHealth.summary.last_failed}</strong></div></div>
-              </div>
-            </div>
-          </div>
-        )}
       </section>
     );
   }

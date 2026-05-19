@@ -5,6 +5,13 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val googleServicesFile = file("google-services.json")
+if (googleServicesFile.exists()) {
+    apply(plugin = "com.google.gms.google-services")
+} else {
+    logger.lifecycle("google-services.json not found: build berjalan tanpa Firebase/FCM.")
+}
+
 android {
     namespace = "com.satriapiranti.techops.techops_hybrid"
     compileSdk = 36
@@ -46,5 +53,6 @@ flutter {
 }
 
 dependencies {
+    implementation(platform("com.google.firebase:firebase-bom:33.2.0"))
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
