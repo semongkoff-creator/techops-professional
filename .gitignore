@@ -27,3 +27,6 @@ flutter_hybrid/.flutter-plugins-dependencies
 flutter_hybrid/.packages
 flutter_hybrid/android/.gradle/
 flutter_hybrid/android/local.properties
+# Firebase local secrets
+flutter_hybrid/android/app/google-services.json
+flutter_hybrid/ios/Runner/GoogleService-Info.plist
