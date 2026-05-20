@@ -49,7 +49,12 @@ CREATE TABLE IF NOT EXISTS task_assignments (
 
 CREATE TABLE IF NOT EXISTS daily_reports (
   id BIGSERIAL PRIMARY KEY,
-  task_id BIGINT NOT NULL REFERENCES tasks(id),
+  task_id BIGINT,
+  task_code_ref VARCHAR(30),
+  task_title_snapshot TEXT,
+  customer_snapshot TEXT,
+  location_snapshot TEXT,
+  created_by_staff_id BIGINT REFERENCES users(id),
   report_date DATE NOT NULL,
   technician_id BIGINT NOT NULL REFERENCES users(id),
   supervisor_id BIGINT NOT NULL REFERENCES users(id),

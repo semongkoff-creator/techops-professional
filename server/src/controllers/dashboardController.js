@@ -41,8 +41,8 @@ export async function dashboardSummary(req, res) {
 
   const [reportStats] = await pool.execute(
     `SELECT report_status, COUNT(*) as total FROM daily_reports r
-     JOIN tasks t ON t.id=r.task_id
-     WHERE (?='atasan' AND t.created_by_atasan_id=?)
+     LEFT JOIN tasks t ON t.id=r.task_id
+     WHERE (?='atasan' AND COALESCE(t.created_by_atasan_id, r.created_by_staff_id)=?)
      OR (?='supervisor' AND r.supervisor_id=?)
      OR (?='teknisi' AND r.technician_id=?)
      GROUP BY report_status`,
@@ -94,21 +94,22 @@ export async function exportData(req, res) {
   WHERE 1=1`;
   const reportBaseSelect = `SELECT
     r.id,
-    t.code,
-    t.title,
-    t.customer,
-    t.location,
+    COALESCE(t.code, r.task_code_ref) AS code,
+    COALESCE(t.title, r.task_title_snapshot) AS title,
+    COALESCE(t.customer, r.customer_snapshot) AS customer,
+    COALESCE(t.location, r.location_snapshot) AS location,
     r.report_date,
     r.progress_percent AS completion_percent,
     r.issue_text,
     r.summary_text,
     t.documentation_image_url,
     r.report_status AS status,
-    st.name AS staff_name,
+    COALESCE(st.name, st_ref.name) AS staff_name,
     te.name AS technician_name
   FROM daily_reports r
-  JOIN tasks t ON t.id = r.task_id
+  LEFT JOIN tasks t ON t.id = r.task_id
   LEFT JOIN users st ON st.id = t.created_by_atasan_id
+  LEFT JOIN users st_ref ON st_ref.id = r.created_by_staff_id
   LEFT JOIN users te ON te.id = r.technician_id
   WHERE 1=1`;
   let sql = selectedSource === "reports" ? reportBaseSelect : taskBaseSelect;
@@ -138,7 +139,7 @@ export async function exportData(req, res) {
     params.push(Number(technician_id));
   }
   if (req.user.role === "atasan") {
-    sql += " AND t.created_by_atasan_id = ?";
+    sql += " AND COALESCE(t.created_by_atasan_id, r.created_by_staff_id) = ?";
     params.push(req.user.id);
   } else if (req.user.role === "supervisor") {
     sql += selectedSource === "reports" ? " AND r.supervisor_id = ?" : " AND t.supervisor_id = ?";

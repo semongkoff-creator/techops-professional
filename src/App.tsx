@@ -35,6 +35,22 @@ export default function App() {
 
   const PRESENCE_KEY = "techops-presence-v1";
   const PRESENCE_TTL_MS = 45_000;
+  const ensureArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
+  const normalizeNotifications = (value: unknown): Notification[] =>
+    ensureArray<unknown>(value)
+      .filter((it): it is Record<string, unknown> => !!it && typeof it === "object")
+      .filter((it) => Number.isFinite(Number(it.id)))
+      .map((it) => ({
+        id: Number(it.id),
+        user_id: Number(it.user_id || 0),
+        title: String(it.title || ""),
+        message: String(it.message || ""),
+        type: String(it.type || "general"),
+        reference_type: String(it.reference_type || ""),
+        reference_id: Number(it.reference_id || 0),
+        is_read: (it as { is_read?: unknown }).is_read ?? false,
+        created_at: String(it.created_at || new Date().toISOString()),
+      })) as Notification[];
 
   const readPresence = () => {
     try {
@@ -64,22 +80,6 @@ export default function App() {
 
   async function reload() {
     if (!user) return;
-    const ensureArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
-    const normalizeNotifications = (value: unknown): Notification[] =>
-      ensureArray<unknown>(value)
-        .filter((it): it is Record<string, unknown> => !!it && typeof it === "object")
-        .filter((it) => Number.isFinite(Number(it.id)))
-        .map((it) => ({
-          id: Number(it.id),
-          user_id: Number(it.user_id || 0),
-          title: String(it.title || ""),
-          message: String(it.message || ""),
-          type: String(it.type || "general"),
-          reference_type: String(it.reference_type || ""),
-          reference_id: Number(it.reference_id || 0),
-          is_read: (it as { is_read?: unknown }).is_read ?? false,
-          created_at: String(it.created_at || new Date().toISOString()),
-        })) as Notification[];
     const [t, r, n, ds, spv, tek, staffUsers, atasanUsers, allUsers] = await Promise.allSettled([
       api.tasks(),
       api.reports(),

@@ -15,7 +15,24 @@ import { validate } from "../middleware/validate.js";
 
 const router = express.Router();
 
-router.post("/", auth, roleGuard("teknisi", "technician", "staff"), [body("task_id").isInt(), body("report_date").isISO8601(), body("supervisor_id").isInt(), body("progress_percent").isInt({ min: 0, max: 100 }), body("summary_text").notEmpty(), body("issue_text").optional().isString()], validate, asyncHandler(createReport));
+router.post(
+  "/",
+  auth,
+  roleGuard("teknisi", "technician", "staff"),
+  [
+    body("task_id").optional({ nullable: true, checkFalsy: true }).isInt(),
+    body("task_code").optional({ nullable: true, checkFalsy: true }).isString(),
+    body("report_date").isISO8601(),
+    body("supervisor_id").isInt(),
+    body("progress_percent").isInt({ min: 0, max: 100 }),
+    body("summary_text").notEmpty(),
+    body("issue_text").optional().isString(),
+    body("customer_name").optional({ nullable: true, checkFalsy: true }).isString(),
+    body("location_name").optional({ nullable: true, checkFalsy: true }).isString(),
+  ],
+  validate,
+  asyncHandler(createReport),
+);
 router.get("/", auth, asyncHandler(listReports));
 router.get("/:id", auth, asyncHandler(getReportById));
 router.patch("/:id/review", auth, roleGuard("supervisor", "staff"), asyncHandler(reviewReport));

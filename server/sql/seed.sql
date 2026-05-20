@@ -4,6 +4,7 @@ INSERT INTO users (name, username, email, password_hash, role, is_active) VALUES
 ('Ajat', 'spv1', 'ajat@techops.local', '$2b$10$Bq3XAZTudEkwrpYt.9PkvuMzXIeEpJAsvpdeyQPRv22bhIXgdwdUW', 'supervisor', TRUE),
 ('Teknisi A', 'teknisi1', 'tek1@example.com', '$2b$10$9rE5LZ6N38JpxVOQgIBX/OBfgWy8IGUwla.6tRqQxwkCv2QWiwwDG', 'teknisi', TRUE),
 ('Teknisi B', 'teknisi2', 'tek2@example.com', '$2b$10$9rE5LZ6N38JpxVOQgIBX/OBfgWy8IGUwla.6tRqQxwkCv2QWiwwDG', 'teknisi', TRUE),
+('Harno', 'harno', 'harno@techops.local', '$2b$10$0tCqp1Rvp6xhrL4cgN7BcuoIW/7zIHOWeERwOT54rvJk0uRtNid8O', 'teknisi', TRUE),
 ('Ahmad Ansore-Bashori', 'mekanik1', 'ahmad.ansore@techops.local', '$2b$10$TceR5A5r85RMndqw23yUJeXKjZP/aNgJWR0f/o2ixptj.PtggBlTu', 'teknisi', TRUE),
 ('Bambang -Fachru', 'mekanik2', 'bambang.fachru@techops.local', '$2b$10$599TMppYiyFl8q7TdqA5fOqk4s1xObc/gGFB..u1odD.dH10dTC8a', 'teknisi', TRUE),
 ('muhdi lutvi', 'mekanik3', 'muhdi.lutvi@techops.local', '$2b$10$ag5I8pR/wvQPOEqf.thAiejrL3J446ml67yf2rQ0aaM2O7ttq1mNm', 'teknisi', TRUE)

@@ -179,8 +179,8 @@ export function ReportsPage({ isDesktop, user, reports, tasks, supervisors, onDo
     return status;
   };
   const normDate = (d?: string | null) => (d ? String(d).slice(0, 10) : "");
-  const reportIdentity = (r: Report) => `${r.task_id}|${normDate(r.report_date)}|${(r.summary_text || "").trim().toLowerCase()}|${r.progress_percent ?? 0}|${r.report_status || ""}`;
-  const looseIdentity = (r: Report) => `${r.task_id}|${(r.summary_text || "").trim().toLowerCase()}|${r.progress_percent ?? 0}`;
+  const reportIdentity = (r: Report) => `${r.task_id || r.task_code_ref || "-"}|${normDate(r.report_date)}|${(r.summary_text || "").trim().toLowerCase()}|${r.progress_percent ?? 0}|${r.report_status || ""}`;
+  const looseIdentity = (r: Report) => `${r.task_id || r.task_code_ref || "-"}|${(r.summary_text || "").trim().toLowerCase()}|${r.progress_percent ?? 0}`;
   const mergedByIdentity = new Map<string, Report>();
   for (const r of localHistory) mergedByIdentity.set(reportIdentity(r), r);
   for (const r of reports) mergedByIdentity.set(reportIdentity(r), r); // server wins
@@ -267,6 +267,12 @@ export function ReportsPage({ isDesktop, user, reports, tasks, supervisors, onDo
     return line.split(":").slice(1).join(":").trim() || "-";
   };
   const taskDocUrlByReport = (r: Report) => tasks.find((t) => t.id === r.task_id)?.documentation_image_url || "";
+  const activeTaskOptions = tasks
+    .filter((t) => ["draft_to_supervisor", "assigned_to_technician", "in_progress"].includes(String(t.status || "")))
+    .map((t) => ({
+      value: String(t.id),
+      label: `${t.code} - ${t.customer || "-"} / ${t.location || "-"}`,
+    }));
 
   const normalizeReportDate = (raw: string) => {
     const v = (raw || "").trim().toLowerCase();
@@ -320,6 +326,12 @@ export function ReportsPage({ isDesktop, user, reports, tasks, supervisors, onDo
             <input className="form-control" placeholder="Isi nama customer / PT" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
             <label className="task-label">Kirim Ke</label>
             <FancySelect value={form.supervisor_id} onChange={(v) => setForm({ ...form, supervisor_id: v })} options={[{ value: "", label: "Pilih Supervisor" }, ...supervisors.map((s) => ({ value: String(s.id), label: s.name }))]} />
+            <label className="task-label">Task Aktif (Referensi)</label>
+            <FancySelect
+              value={form.task_id}
+              onChange={(v) => setForm({ ...form, task_id: v })}
+              options={[{ value: "", label: "Pilih Task Aktif (Opsional)" }, ...activeTaskOptions]}
+            />
             <label className="task-label">Detail Unit (Bisa Banyak)</label>
             <div className="d-grid gap-2">
               {unitRows.map((row, index) => (
@@ -405,11 +417,9 @@ export function ReportsPage({ isDesktop, user, reports, tasks, supervisors, onDo
                     setSubmitErr("Format tanggal belum valid. Pakai format: YYYY-MM-DD, DD/MM/YYYY, atau 9 Mei 2026.");
                     return;
                   }
-                  const fallbackTaskId = tasks[0]?.id;
-                  if (!fallbackTaskId) {
-                    setSubmitErr("Belum ada task untuk dikaitkan ke laporan selesai.");
-                    return;
-                  }
+                  const selectedTaskId = form.task_id ? Number(form.task_id) : null;
+                  const selectedTask = selectedTaskId ? tasks.find((t) => t.id === selectedTaskId) : null;
+                  const taskCodeRef = selectedTask?.code || "";
                   setSubmitBusy(true);
                   const compactUnitRows = unitRows
                     .map((row, index) => ({
@@ -435,17 +445,19 @@ export function ReportsPage({ isDesktop, user, reports, tasks, supervisors, onDo
                   const baseSummary = form.summary_text.trim() || `Laporan selesai ${customerName.trim()}`;
                   await api.createReport({
                     ...form,
-                    task_id: fallbackTaskId,
+                    task_id: selectedTaskId,
+                    task_code: taskCodeRef,
+                    customer_name: customerName.trim(),
                     report_date: normalizedReportDate,
                     supervisor_id: Number(form.supervisor_id),
                     progress_percent: 100,
                     summary_text: `${baseSummary}${unitSummary}`,
                   });
-                  const selectedTask = tasks.find((t) => t.id === fallbackTaskId);
                   const nowId = Date.now();
                   setLocalHistory((prev) => [{
                     id: nowId,
-                    task_id: fallbackTaskId,
+                    task_id: selectedTaskId,
+                    task_code_ref: taskCodeRef || null,
                     report_date: normalizedReportDate,
                     progress_percent: 100,
                     issue_text: null,
@@ -454,7 +466,7 @@ export function ReportsPage({ isDesktop, user, reports, tasks, supervisors, onDo
                     task_code: selectedTask?.code,
                     task_title: selectedTask?.title,
                   }, ...prev]);
-                  setSubmitMsg("Laporan selesai berhasil dikirim dan task disinkronkan.");
+                  setSubmitMsg("Laporan selesai berhasil dikirim.");
                   showToast("Laporan selesai berhasil dibuat.");
                   setForm({ task_id: "", report_date: "", supervisor_id: "", progress_percent: "0", issue_text: "", summary_text: "" });
                   setMekanikName("");
@@ -503,7 +515,7 @@ export function ReportsPage({ isDesktop, user, reports, tasks, supervisors, onDo
                     const mainSummary = extractMainSummary(r.summary_text);
                     return (
                       <tr key={r.id}>
-                        <td><strong>{r.task_code || tasks.find((t) => t.id === r.task_id)?.code || `Task #${r.task_id}`}</strong></td>
+                        <td><strong>{r.task_code || r.task_code_ref || tasks.find((t) => t.id === r.task_id)?.code || (r.task_id ? `Task #${r.task_id}` : "Tanpa Task")}</strong></td>
                         <td>{r.report_date ? new Date(r.report_date).toLocaleDateString("id-ID") : "-"}</td>
                         <td>{r.progress_percent ?? 0}%</td>
                         <td><span className="badge text-bg-light border report-status-badge">{prettyReportStatus(r.report_status)}</span></td>
@@ -543,7 +555,7 @@ export function ReportsPage({ isDesktop, user, reports, tasks, supervisors, onDo
             : reportRows.map((r) => (
               <div key={r.id} className="card">
                 <div className="card-body report-mobile-item">
-                  <b className="report-item-title">{r.task_code || tasks.find((t) => t.id === r.task_id)?.code || `Task #${r.task_id}`}</b>
+                  <b className="report-item-title">{r.task_code || r.task_code_ref || tasks.find((t) => t.id === r.task_id)?.code || (r.task_id ? `Task #${r.task_id}` : "Tanpa Task")}</b>
                   <p className="mb-2 report-item-summary">{extractMainSummary(r.summary_text)}</p>
                   <span className="badge text-bg-light border report-status-badge">{prettyReportStatus(r.report_status)}</span>
                   {expandedId === r.id && (

@@ -30,7 +30,11 @@ export type Task = {
 
 export type Report = {
   id: number;
-  task_id: number;
+  task_id?: number | null;
+  task_code_ref?: string | null;
+  task_title_snapshot?: string | null;
+  customer_snapshot?: string | null;
+  location_snapshot?: string | null;
   report_date: string;
   progress_percent: number;
   issue_text?: string | null;

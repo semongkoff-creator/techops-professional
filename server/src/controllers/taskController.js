@@ -382,7 +382,12 @@ export async function deleteTask(req, res) {
 
   const taskId = Number(req.params.id);
   await pool.execute("DELETE FROM task_assignments WHERE task_id=?", [taskId]);
-  await pool.execute("DELETE FROM daily_reports WHERE task_id=?", [taskId]);
+  await pool.execute(
+    `UPDATE daily_reports
+     SET task_id=NULL, updated_at=NOW()
+     WHERE task_id=?`,
+    [taskId],
+  );
   await pool.execute("DELETE FROM notifications WHERE reference_type='task' AND reference_id=?", [taskId]);
   await pool.execute("DELETE FROM audit_logs WHERE entity_type='task' AND entity_id=?", [taskId]);
   await pool.execute("DELETE FROM tasks WHERE id=?", [taskId]);
