@@ -226,7 +226,10 @@ class NotificationService {
             'Authorization': 'Bearer $accessToken',
             'x-device-id': deviceId,
           },
-          body: jsonEncode(<String, String>{'push_token': pushToken}),
+          body: jsonEncode(<String, String>{
+            'push_token': pushToken,
+            'provider': 'fcm',
+          }),
         );
       } catch (_) {
         continue;

@@ -9,6 +9,19 @@ let notificationSchemaReady = false;
 async function ensureNotificationSchema() {
   if (notificationSchemaReady) return;
   await pool.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS push_token TEXT", []);
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS user_push_tokens (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL,
+      device_id TEXT NOT NULL,
+      provider TEXT NOT NULL DEFAULT 'fcm',
+      push_token TEXT NOT NULL,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE(user_id, device_id, provider)
+    )
+  `, []);
   await pool.execute("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS sender_id BIGINT NULL", []);
   await pool.execute("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS sender_role VARCHAR(32) NULL", []);
   await pool.execute("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS task_id BIGINT NULL", []);
@@ -183,8 +196,24 @@ export async function createNotification({
      VALUES (?, ?, ?, FALSE, ?, ?, ?, ?, ?, ?, NOW())`,
     [userId, title, message, type, referenceType, referenceId, senderId, senderRole, taskId],
   );
-  const [rows] = await pool.execute("SELECT push_token FROM users WHERE id=? LIMIT 1", [userId]);
-  const token = rows?.[0]?.push_token || null;
+  const [rows] = await pool.execute(
+    "SELECT push_token, provider, device_id FROM user_push_tokens WHERE user_id=? AND is_active=TRUE ORDER BY updated_at DESC",
+    [userId],
+  );
+  const tokenRows = Array.isArray(rows) ? rows : [];
+  if (!tokenRows.length) {
+    // Backward compatibility: fallback to legacy single token on users table.
+    const [legacyRows] = await pool.execute("SELECT push_token FROM users WHERE id=? LIMIT 1", [userId]);
+    const legacyToken = legacyRows?.[0]?.push_token || null;
+    if (legacyToken) {
+      tokenRows.push({
+        push_token: legacyToken,
+        provider: isLikelyOneSignalPlayerId(legacyToken) ? "onesignal" : "fcm",
+        device_id: "legacy",
+      });
+    }
+  }
+
   const pushData = {
     type: type || "general",
     reference_type: referenceType || "",
@@ -193,33 +222,38 @@ export async function createNotification({
     deep_link: taskId ? `/tasks?task_id=${taskId}` : referenceType === "report" ? "/reports" : "/notifications",
   };
 
-  // Route provider by token type to avoid cross-provider mismatch.
-  if (!token) return;
+  if (!tokenRows.length) return;
 
-  if (isLikelyOneSignalPlayerId(token)) {
-    const sentByOneSignal = await sendPushOneSignal({ token, title, body: message, data: pushData });
-    if (!sentByOneSignal) {
-      await sendPushFirebaseAdmin({ token, title, body: message, data: pushData });
-      await sendPushLegacy({ token, title, body: message, data: pushData });
+  for (const tokenRow of tokenRows) {
+    const token = String(tokenRow?.push_token || "").trim();
+    if (!token) continue;
+    const provider = String(tokenRow?.provider || "").toLowerCase();
+
+    if (provider === "onesignal" || isLikelyOneSignalPlayerId(token)) {
+      const sentByOneSignal = await sendPushOneSignal({ token, title, body: message, data: pushData });
+      if (!sentByOneSignal) {
+        await sendPushFirebaseAdmin({ token, title, body: message, data: pushData });
+        await sendPushLegacy({ token, title, body: message, data: pushData });
+      }
+      continue;
     }
-    return;
-  }
 
-  if (isLikelyFcmToken(token)) {
+    if (provider === "fcm" || isLikelyFcmToken(token)) {
+      const sentByFirebaseAdmin = await sendPushFirebaseAdmin({ token, title, body: message, data: pushData });
+      if (!sentByFirebaseAdmin) {
+        await sendPushLegacy({ token, title, body: message, data: pushData });
+        await sendPushOneSignal({ token, title, body: message, data: pushData });
+      }
+      continue;
+    }
+
+    // Unknown token format: try all providers in safe order.
     const sentByFirebaseAdmin = await sendPushFirebaseAdmin({ token, title, body: message, data: pushData });
     if (!sentByFirebaseAdmin) {
-      await sendPushLegacy({ token, title, body: message, data: pushData });
-      await sendPushOneSignal({ token, title, body: message, data: pushData });
-    }
-    return;
-  }
-
-  // Unknown token format: try all providers in safe order.
-  const sentByFirebaseAdmin = await sendPushFirebaseAdmin({ token, title, body: message, data: pushData });
-  if (!sentByFirebaseAdmin) {
-    const sentByOneSignal = await sendPushOneSignal({ token, title, body: message, data: pushData });
-    if (!sentByOneSignal) {
-      await sendPushLegacy({ token, title, body: message, data: pushData });
+      const sentByOneSignal = await sendPushOneSignal({ token, title, body: message, data: pushData });
+      if (!sentByOneSignal) {
+        await sendPushLegacy({ token, title, body: message, data: pushData });
+      }
     }
   }
 }

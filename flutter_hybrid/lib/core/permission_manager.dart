@@ -11,18 +11,12 @@ class PermissionManager {
     final prefs = await SharedPreferences.getInstance();
     final bool alreadyRequested = prefs.getBool(_notifRequestedKey) ?? false;
 
+    final status = await Permission.notification.status;
+    if (!status.isGranted) {
+      await Permission.notification.request();
+    }
     if (!alreadyRequested) {
-      final status = await Permission.notification.status;
-      if (status.isDenied || status.isRestricted || status.isLimited) {
-        await Permission.notification.request();
-      }
       await prefs.setBool(_notifRequestedKey, true);
-    } else {
-      final status = await Permission.notification.status;
-      if (status.isDenied) {
-        // Soft retry when app reopened after first install.
-        await Permission.notification.request();
-      }
     }
 
     await Permission.camera.request();

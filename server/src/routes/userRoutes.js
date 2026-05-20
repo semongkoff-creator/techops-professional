@@ -27,7 +27,16 @@ router.post("/members", auth, roleGuard("supervisor", "atasan"), [
 ], validate, asyncHandler(createMember));
 router.get("/:id", auth, asyncHandler(getUserById));
 router.patch("/me", auth, [body("name").notEmpty().isLength({ min: 2 }), body("avatar_url").optional().isString()], validate, asyncHandler(updateMyProfile));
-router.patch("/me/push-token", auth, [body("push_token").optional({ nullable: true, checkFalsy: true }).isString()], validate, asyncHandler(updateMyPushToken));
+router.patch(
+  "/me/push-token",
+  auth,
+  [
+    body("push_token").optional({ nullable: true, checkFalsy: true }).isString(),
+    body("provider").optional({ nullable: true, checkFalsy: true }).isIn(["fcm", "onesignal"]),
+  ],
+  validate,
+  asyncHandler(updateMyPushToken),
+);
 router.patch("/me/password", auth, [body("current_password").isString().isLength({ min: 6 }), body("new_password").isString().isLength({ min: 6 })], validate, asyncHandler(changeMyPassword));
 router.patch("/me/avatar", auth, uploadAvatar.single("avatar"), asyncHandler(uploadMyAvatar));
 

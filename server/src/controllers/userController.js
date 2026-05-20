@@ -115,16 +115,48 @@ export async function updateMyProfile(req, res) {
 export async function updateMyPushToken(req, res) {
   const { push_token } = req.body;
   const nextToken = push_token || null;
+  const providerRaw = String(req.body?.provider || "").trim().toLowerCase();
+  const provider = providerRaw === "onesignal" ? "onesignal" : "fcm";
   const deviceId = req.headers["x-device-id"] || null;
   const userAgent = req.headers["user-agent"] || null;
   const ip = req.ip || req.socket?.remoteAddress || null;
 
   try {
     await pool.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS push_token TEXT", []);
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS user_push_tokens (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        device_id TEXT NOT NULL,
+        provider TEXT NOT NULL DEFAULT 'fcm',
+        push_token TEXT NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, device_id, provider)
+      )
+    `, []);
     const [rows] = await pool.execute("SELECT push_token FROM users WHERE id=? LIMIT 1", [req.user.id]);
     const prevToken = rows?.[0]?.push_token || null;
+    const normalizedDeviceId = String(deviceId || "unknown-device");
 
     await pool.execute("UPDATE users SET push_token=?, updated_at=NOW() WHERE id=?", [nextToken, req.user.id]);
+    if (nextToken) {
+      await pool.execute(
+        `INSERT INTO user_push_tokens (user_id, device_id, provider, push_token, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, TRUE, NOW(), NOW())
+         ON CONFLICT (user_id, device_id, provider)
+         DO UPDATE SET push_token=EXCLUDED.push_token, is_active=TRUE, updated_at=NOW()`,
+        [req.user.id, normalizedDeviceId, provider, nextToken],
+      );
+    } else {
+      await pool.execute(
+        `UPDATE user_push_tokens
+         SET is_active=FALSE, updated_at=NOW()
+         WHERE user_id=? AND device_id=?`,
+        [req.user.id, normalizedDeviceId],
+      );
+    }
 
     await createAuditLog({
       actorUserId: req.user.id,
@@ -136,6 +168,7 @@ export async function updateMyPushToken(req, res) {
       },
       newValue: {
         push_token: maskToken(nextToken),
+        provider,
         device_id: deviceId,
         user_agent: userAgent,
         ip,
@@ -172,6 +205,20 @@ export async function pushTokenHealth(req, res) {
     ? Math.max(1, Math.min(200, Math.trunc(limitRaw)))
     : 50;
 
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS user_push_tokens (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL,
+      device_id TEXT NOT NULL,
+      provider TEXT NOT NULL DEFAULT 'fcm',
+      push_token TEXT NOT NULL,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE(user_id, device_id, provider)
+    )
+  `, []);
+
   const [rows] = await pool.execute(
     `
     SELECT
@@ -179,11 +226,13 @@ export async function pushTokenHealth(req, res) {
       u.name,
       u.username,
       u.role,
-      u.push_token,
-      u.updated_at,
+      u.updated_at AS user_updated_at,
+      COUNT(ut.id) FILTER (WHERE ut.is_active=TRUE) AS active_token_count,
+      MAX(ut.updated_at) AS last_token_at,
       al.action AS last_audit_action,
       al.created_at AS last_audit_at
     FROM users u
+    LEFT JOIN user_push_tokens ut ON ut.user_id=u.id
     LEFT JOIN LATERAL (
       SELECT action, created_at
       FROM audit_logs
@@ -194,7 +243,8 @@ export async function pushTokenHealth(req, res) {
       LIMIT 1
     ) al ON TRUE
     WHERE u.is_active=TRUE
-    ORDER BY u.updated_at DESC
+    GROUP BY u.id, u.name, u.username, u.role, u.updated_at, al.action, al.created_at
+    ORDER BY MAX(ut.updated_at) DESC NULLS LAST, u.updated_at DESC
     LIMIT ?
     `,
     [limit],
@@ -202,8 +252,8 @@ export async function pushTokenHealth(req, res) {
 
   const summary = {
     total_users: rows.length,
-    token_active: rows.filter((r) => !!r.push_token).length,
-    token_missing: rows.filter((r) => !r.push_token).length,
+    token_active: rows.filter((r) => Number(r.active_token_count || 0) > 0).length,
+    token_missing: rows.filter((r) => Number(r.active_token_count || 0) === 0).length,
     last_failed: rows.filter((r) => r.last_audit_action === "push_token_update_failed")
       .length,
   };
@@ -213,9 +263,10 @@ export async function pushTokenHealth(req, res) {
     name: r.name,
     username: r.username,
     role: r.role,
-    token_status: r.push_token ? "active" : "missing",
-    token_masked: maskToken(r.push_token),
-    updated_at: r.updated_at,
+    token_status: Number(r.active_token_count || 0) > 0 ? "active" : "missing",
+    token_count: Number(r.active_token_count || 0),
+    token_masked: Number(r.active_token_count || 0) > 0 ? `${r.active_token_count} device(s)` : null,
+    updated_at: r.last_token_at || r.user_updated_at,
     last_audit_action: r.last_audit_action || null,
     last_audit_at: r.last_audit_at || null,
   }));
