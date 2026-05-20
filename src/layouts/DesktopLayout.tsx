@@ -32,11 +32,11 @@ export function DesktopLayout({
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
-  const latestUnread = notifications.filter((n) => !isRead(n)).slice(0, 8);
   const isRead = (n: Notification) => {
     const raw = (n as Notification & { is_read: unknown }).is_read;
     return raw === true || raw === 1 || raw === "1" || raw === "true" || raw === "t";
   };
+  const latestUnread = notifications.filter((n) => !isRead(n)).slice(0, 8);
   const pageTitle =
     page === "dashboard" ? "Dashboard" :
     page === "tasks" ? "Tasks" :
