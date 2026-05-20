@@ -64,6 +64,22 @@ export default function App() {
 
   async function reload() {
     if (!user) return;
+    const ensureArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
+    const normalizeNotifications = (value: unknown): Notification[] =>
+      ensureArray<unknown>(value)
+        .filter((it): it is Record<string, unknown> => !!it && typeof it === "object")
+        .filter((it) => Number.isFinite(Number(it.id)))
+        .map((it) => ({
+          id: Number(it.id),
+          user_id: Number(it.user_id || 0),
+          title: String(it.title || ""),
+          message: String(it.message || ""),
+          type: String(it.type || "general"),
+          reference_type: String(it.reference_type || ""),
+          reference_id: Number(it.reference_id || 0),
+          is_read: (it as { is_read?: unknown }).is_read ?? false,
+          created_at: String(it.created_at || new Date().toISOString()),
+        })) as Notification[];
     const [t, r, n, ds, spv, tek, staffUsers, atasanUsers, allUsers] = await Promise.allSettled([
       api.tasks(),
       api.reports(),
@@ -76,26 +92,26 @@ export default function App() {
       api.users(),
     ]);
 
-    if (t.status === "fulfilled") setTasks(t.value as Task[]);
-    if (r.status === "fulfilled") setReports(r.value as Report[]);
-    if (n.status === "fulfilled") setNotifications(n.value as Notification[]);
+    if (t.status === "fulfilled") setTasks(ensureArray<Task>(t.value));
+    if (r.status === "fulfilled") setReports(ensureArray<Report>(r.value));
+    if (n.status === "fulfilled") setNotifications(normalizeNotifications(n.value));
     if (ds.status === "fulfilled") setSummary(ds.value as { taskStats: Array<{ status: string; total: number }>; reportStats: Array<{ report_status: string; total: number }> });
 
-    const usersFallback = allUsers.status === "fulfilled" ? (allUsers.value as User[]) : [];
+    const usersFallback = allUsers.status === "fulfilled" ? ensureArray<User>(allUsers.value) : [];
     const supervisorsDataRaw = spv.status === "fulfilled"
-      ? (spv.value as User[])
+      ? ensureArray<User>(spv.value)
       : [];
     const supervisorsDataFromApi = supervisorsDataRaw.filter((u) => String(u.role || "").toLowerCase() === "supervisor");
     const supervisorsDataFallback = usersFallback.filter((u) => String(u.role || "").toLowerCase() === "supervisor");
     const supervisorsData = supervisorsDataFromApi.length > 0 ? supervisorsDataFromApi : supervisorsDataFallback;
     const techniciansData = tek.status === "fulfilled"
-      ? (tek.value as User[])
+      ? ensureArray<User>(tek.value)
       : usersFallback.filter((u) => u.role === "teknisi" || u.role === "technician");
     const staffsData = staffUsers.status === "fulfilled"
-      ? (staffUsers.value as User[])
+      ? ensureArray<User>(staffUsers.value)
       : usersFallback.filter((u) => u.role === "staff");
     const atasansData = atasanUsers.status === "fulfilled"
-      ? (atasanUsers.value as User[])
+      ? ensureArray<User>(atasanUsers.value)
       : usersFallback.filter((u) => u.role === "atasan");
 
     setSupervisors(supervisorsData);
@@ -253,7 +269,7 @@ export default function App() {
       busy = true;
       try {
         const n = await api.notifications();
-        setNotifications(n as Notification[]);
+        setNotifications(normalizeNotifications(n));
       } catch {
         // ignore intermittent errors
       } finally {
