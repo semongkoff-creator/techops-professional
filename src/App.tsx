@@ -78,13 +78,9 @@ export default function App() {
     setOnlineTechIds(activeIds);
   };
 
-  async function reload() {
+  async function loadLookupData() {
     if (!user) return;
-    const [t, r, n, ds, spv, tek, staffUsers, atasanUsers, allUsers] = await Promise.allSettled([
-      api.tasks(),
-      api.reports(),
-      api.notifications(),
-      api.dashboardSummary(),
+    const [spv, tek, staffUsers, atasanUsers, allUsers] = await Promise.allSettled([
       api.users("supervisor"),
       api.users("teknisi"),
       api.users("staff"),
@@ -92,15 +88,8 @@ export default function App() {
       api.users(),
     ]);
 
-    if (t.status === "fulfilled") setTasks(ensureArray<Task>(t.value));
-    if (r.status === "fulfilled") setReports(ensureArray<Report>(r.value));
-    if (n.status === "fulfilled") setNotifications(normalizeNotifications(n.value));
-    if (ds.status === "fulfilled") setSummary(ds.value as { taskStats: Array<{ status: string; total: number }>; reportStats: Array<{ report_status: string; total: number }> });
-
     const usersFallback = allUsers.status === "fulfilled" ? ensureArray<User>(allUsers.value) : [];
-    const supervisorsDataRaw = spv.status === "fulfilled"
-      ? ensureArray<User>(spv.value)
-      : [];
+    const supervisorsDataRaw = spv.status === "fulfilled" ? ensureArray<User>(spv.value) : [];
     const supervisorsDataFromApi = supervisorsDataRaw.filter((u) => String(u.role || "").toLowerCase() === "supervisor");
     const supervisorsDataFallback = usersFallback.filter((u) => String(u.role || "").toLowerCase() === "supervisor");
     const supervisorsData = supervisorsDataFromApi.length > 0 ? supervisorsDataFromApi : supervisorsDataFallback;
@@ -120,6 +109,25 @@ export default function App() {
     setAtasans(atasansData);
   }
 
+  async function reloadCore() {
+    if (!user) return;
+    const [t, r, n, ds] = await Promise.allSettled([
+      api.tasks(),
+      api.reports(),
+      api.notifications(),
+      api.dashboardSummary(),
+    ]);
+
+    if (t.status === "fulfilled") setTasks(ensureArray<Task>(t.value));
+    if (r.status === "fulfilled") setReports(ensureArray<Report>(r.value));
+    if (n.status === "fulfilled") setNotifications(normalizeNotifications(n.value));
+    if (ds.status === "fulfilled") setSummary(ds.value as { taskStats: Array<{ status: string; total: number }>; reportStats: Array<{ report_status: string; total: number }> });
+  }
+
+  async function reload() {
+    await Promise.allSettled([reloadCore(), loadLookupData()]);
+  }
+
   useEffect(() => {
     reload().catch(() => undefined);
   }, [user]);
@@ -132,7 +140,7 @@ export default function App() {
       if (document.visibilityState !== "visible") return;
       busy = true;
       try {
-        await reload();
+        await reloadCore();
       } catch {
         // keep UI stable on intermittent network issues
       } finally {
@@ -140,7 +148,7 @@ export default function App() {
       }
     };
 
-    const intervalMs = isDesktopViewport ? 15000 : 5000;
+    const intervalMs = isDesktopViewport ? 15000 : 8000;
     const timer = window.setInterval(() => {
       void safeReload();
     }, intervalMs);

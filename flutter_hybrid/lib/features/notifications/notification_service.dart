@@ -21,6 +21,11 @@ class NotificationService {
   String? get lastSyncedUserToken => _lastSyncedUserToken;
 
   bool _initialized = false;
+  static const String _channelId = 'task_updates_v2';
+  static const String _channelName = 'Task Updates';
+  static const String _channelDesc = 'Notifikasi tugas realtime';
+  static const RawResourceAndroidNotificationSound _customSound =
+      RawResourceAndroidNotificationSound('notif');
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -43,11 +48,12 @@ class NotificationService {
           AndroidFlutterLocalNotificationsPlugin>();
       await androidImpl?.createNotificationChannel(
         const AndroidNotificationChannel(
-          'task_updates',
-          'Task Updates',
-          description: 'Notifikasi tugas realtime',
+          _channelId,
+          _channelName,
+          description: _channelDesc,
           importance: Importance.max,
           playSound: true,
+          sound: _customSound,
         ),
       );
 
@@ -125,13 +131,15 @@ class NotificationService {
       body,
       const NotificationDetails(
         android: AndroidNotificationDetails(
-          'task_updates',
-          'Task Updates',
-          channelDescription: 'Notifikasi tugas realtime',
+          _channelId,
+          _channelName,
+          channelDescription: _channelDesc,
           importance: Importance.max,
           priority: Priority.high,
           ticker: 'task_updates',
           visibility: NotificationVisibility.public,
+          sound: _customSound,
+          playSound: true,
         ),
       ),
       payload: payload,
