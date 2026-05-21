@@ -68,7 +68,7 @@ class TechOpsHybridApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Santria Piranti Perkasa',
+      title: 'Satria Piranti Perkasa',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFFF7A45)),
         useMaterial3: true,

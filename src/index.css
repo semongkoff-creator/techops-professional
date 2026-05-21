@@ -1264,10 +1264,10 @@ table { width: 100%; min-width: 780px; }
 .monitoring-desktop-shell .topbar-pro { background: #f6f8ff !important; }
 .topbar-bell-wrap {
   position: relative;
-  z-index: 7100;
+  z-index: 16000;
 }
 .topbar-bell-wrap.open {
-  z-index: 7200;
+  z-index: 17000;
 }
 .topbar-page {
   font-weight: 700;
@@ -1931,7 +1931,7 @@ table { width: 100%; min-width: 780px; }
   border-radius: 12px;
   background: #fff;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
-  z-index: 2000;
+  z-index: 18000;
   padding: 10px;
 }
 
@@ -1984,7 +1984,7 @@ table { width: 100%; min-width: 780px; }
   top: 14px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 2200;
+  z-index: 19000;
   border: 1px solid #ffd0b7;
   background: #fff6f1;
   color: #203252;

@@ -3,6 +3,7 @@ import type { User } from "../types";
 import { useMemo, useState } from "react";
 
 function colorFromName(name: string) {
+  if (!name) return "hsl(210 30% 92%)";
   let hash = 0;
   for (let i = 0; i < name.length; i += 1) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   const hue = Math.abs(hash) % 360;
@@ -11,6 +12,10 @@ function colorFromName(name: string) {
 
 export function Avatar({ user }: { user: User }) {
   const [imgErr, setImgErr] = useState(false);
+  const safeName = useMemo(() => {
+    const raw = String(user?.name ?? "").trim();
+    return raw || "User";
+  }, [user?.name]);
   const src = useMemo(() => {
     const raw = String(user.avatar_url || "").trim();
     if (!raw) return "";
@@ -18,6 +23,6 @@ export function Avatar({ user }: { user: User }) {
     const normalized = raw.startsWith("/") ? raw : `/${raw}`;
     return `${ASSET_BASE}${normalized}`;
   }, [user.avatar_url]);
-  if (src && !imgErr) return <img className="avatar" src={src} alt={user.name} onError={() => setImgErr(true)} />;
-  return <div className="avatar fallback" style={{ background: colorFromName(user.name) }}>{user.name.slice(0, 1).toUpperCase()}</div>;
+  if (src && !imgErr) return <img className="avatar" src={src} alt={safeName} onError={() => setImgErr(true)} />;
+  return <div className="avatar fallback" style={{ background: colorFromName(safeName) }}>{safeName.slice(0, 1).toUpperCase()}</div>;
 }

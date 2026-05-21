@@ -754,7 +754,7 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
         </div>
       )}
       {activeTaskMenuId && activeTaskMenuPos && tasksById.get(activeTaskMenuId) && createPortal(
-        <div style={{ position: "fixed", top: activeTaskMenuPos.top, left: activeTaskMenuPos.left, zIndex: 12000, transform: activeTaskMenuPos.openUp ? "translateY(-100%)" : "none" }}>
+        <div style={{ position: "fixed", top: activeTaskMenuPos.top, left: activeTaskMenuPos.left, zIndex: 20000, transform: activeTaskMenuPos.openUp ? "translateY(-100%)" : "none" }}>
           {renderActionMenu(tasksById.get(activeTaskMenuId)!)}
         </div>,
         document.body,

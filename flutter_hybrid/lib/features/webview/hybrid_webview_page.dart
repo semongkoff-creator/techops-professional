@@ -229,7 +229,7 @@ class _HybridWebViewPageState extends State<HybridWebViewPage>
     }
 
     try {
-      final uri = Uri.parse(uploadUrl);
+      final uri = _resolveUploadUri(uploadUrl);
       final mimeType = picked.mimeType ?? 'application/octet-stream';
       final request = http.MultipartRequest('POST', uri)
         ..headers['Authorization'] = 'Bearer $bearerToken'
@@ -282,6 +282,13 @@ class _HybridWebViewPageState extends State<HybridWebViewPage>
         "window.dispatchEvent(new CustomEvent('native-upload-result', { detail: $payload }));",
       );
     }
+  }
+
+  Uri _resolveUploadUri(String uploadUrl) {
+    final parsed = Uri.parse(uploadUrl);
+    if (parsed.hasScheme) return parsed;
+    final base = Uri.parse(_safeInitialUrl);
+    return base.resolve(uploadUrl);
   }
 
   Map<String, dynamic> _safeJsonMap(String raw) {
