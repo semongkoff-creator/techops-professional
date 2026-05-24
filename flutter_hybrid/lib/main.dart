@@ -8,6 +8,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'core/permission_manager.dart';
 import 'features/notifications/notification_service.dart';
@@ -85,15 +86,29 @@ class SplashGate extends StatefulWidget {
   State<SplashGate> createState() => _SplashGateState();
 }
 
-class _SplashGateState extends State<SplashGate> {
+class _SplashGateState extends State<SplashGate> with WidgetsBindingObserver {
   bool _ready = false;
   bool _online = true;
+  bool _notifChecked = false;
+  bool _notifDialogShown = false;
   StreamSubscription<List<ConnectivityResult>>? _subscription;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _init();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final needRecheck = _ready;
+      if (needRecheck) {
+        _notifChecked = false;
+        _requestNotifPermissionAfterUiReady();
+      }
+    }
   }
 
   Future<void> _init() async {
@@ -109,11 +124,46 @@ class _SplashGateState extends State<SplashGate> {
     await Future<void>.delayed(const Duration(milliseconds: 900));
     if (mounted) {
       setState(() => _ready = true);
+      _requestNotifPermissionAfterUiReady();
+    }
+  }
+
+  Future<void> _requestNotifPermissionAfterUiReady() async {
+    if (_notifChecked) return;
+    _notifChecked = true;
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    final granted = await PermissionManager.instance.ensureNotificationPermission();
+    if (!granted && mounted && !_notifDialogShown) {
+      _notifDialogShown = true;
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Aktifkan Notifikasi'),
+          content: const Text(
+            'Agar tugas baru langsung masuk, aktifkan izin notifikasi di Pengaturan aplikasi.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Nanti'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                await openAppSettings();
+              },
+              child: const Text('Buka Pengaturan'),
+            ),
+          ],
+        ),
+      );
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _subscription?.cancel();
     super.dispose();
   }

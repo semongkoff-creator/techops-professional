@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
+import 'package:permission_handler/permission_handler.dart';
 
 class NotificationService {
   NotificationService._();
@@ -46,6 +47,8 @@ class NotificationService {
 
       final androidImpl = _local.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
+      final notifEnabled = await androidImpl?.areNotificationsEnabled();
+      debugPrint('LOCAL NOTIF enabled=$notifEnabled');
       await androidImpl?.requestNotificationsPermission();
       await androidImpl?.createNotificationChannel(
         const AndroidNotificationChannel(
@@ -65,6 +68,8 @@ class NotificationService {
         sound: true,
       );
       debugPrint('FCM permission status=${permission.authorizationStatus}');
+      final permStatus = await Permission.notification.status;
+      debugPrint('PERMISSION_HANDLER notification status=$permStatus');
 
       final token = await messaging.getToken();
       debugPrint('FCM TOKEN=$token');

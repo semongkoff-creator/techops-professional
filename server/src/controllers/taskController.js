@@ -13,6 +13,15 @@ async function notifyUsers(userIds, payload) {
   await Promise.all(unique.map((userId) => createNotification({ userId, ...payload })));
 }
 
+function collectTaskParticipants(taskLike = {}) {
+  return [
+    Number(taskLike.supervisor_id || 0),
+    Number(taskLike.created_by_atasan_id || 0),
+    Number(taskLike.technician_id || 0),
+    Number(taskLike.staff_id || 0),
+  ].filter((id) => Number.isFinite(id) && id > 0);
+}
+
 function fileExtFromMime(mime) {
   if (mime === "video/mp4") return "mp4";
   if (mime === "video/webm") return "webm";
@@ -159,10 +168,18 @@ export async function createTask(req, res) {
   if (isSupervisor) {
     targetUserIds = [selectedStaffId, selectedTechnicianId];
   } else if (isStaff) {
-    targetUserIds = [selectedTechnicianId];
+    targetUserIds = [selectedSupervisorId, selectedTechnicianId];
   } else if (isTechnician) {
     targetUserIds = [selectedSupervisorId, selectedStaffId];
   }
+  targetUserIds = [
+    ...targetUserIds,
+    ...collectTaskParticipants({
+      supervisor_id: selectedSupervisorId,
+      created_by_atasan_id: selectedStaffId,
+      technician_id: selectedTechnicianId,
+    }),
+  ];
 
   const notif = buildTaskAssignedNotification({
     senderRole: req.user.role,
@@ -356,9 +373,12 @@ export async function updateTask(req, res) {
       senderName: req.user.name,
       action: "update",
     });
-    const targets = req.user.role === "supervisor"
-      ? [req.body.technician_id ?? task.technician_id, task.created_by_atasan_id]
-      : [req.body.technician_id ?? task.technician_id];
+    const targets = [
+      req.body.supervisor_id ?? task.supervisor_id,
+      req.body.staff_id ?? task.created_by_atasan_id,
+      req.body.technician_id ?? task.technician_id,
+      ...collectTaskParticipants(task),
+    ];
     await notifyUsers(targets.filter((id) => Number(id) !== Number(req.user.id)), {
       ...notif,
       referenceType: "task",
