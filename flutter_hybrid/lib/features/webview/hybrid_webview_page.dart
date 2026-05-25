@@ -339,7 +339,7 @@ class _HybridWebViewPageState extends State<HybridWebViewPage>
   }
 
   String _normalizeMimeType(String? mime, String fileName, String filePath) {
-    final normalized = String(mime ?? '').trim().toLowerCase();
+    final normalized = (mime ?? '').trim().toLowerCase();
     if (normalized.isNotEmpty && normalized != 'application/octet-stream') {
       return normalized;
     }

@@ -309,7 +309,7 @@ export function ReportsPage({ isDesktop, user, reports, tasks, supervisors, onDo
       {toast && (
         <div
           className={`alert ${toast.type === "success" ? "alert-success" : "alert-danger"} py-2 px-3`}
-          style={{ position: "fixed", top: "14px", right: "14px", zIndex: 1200, minWidth: "220px", boxShadow: "0 10px 24px rgba(0,0,0,.2)" }}
+          style={{ position: "fixed", top: isDesktop ? "84px" : "14px", right: "14px", zIndex: 22000, minWidth: "220px", boxShadow: "0 10px 24px rgba(0,0,0,.2)" }}
         >
           {toast.message}
         </div>
