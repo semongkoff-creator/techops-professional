@@ -10,7 +10,16 @@ const taskStatuses = ["draft_to_supervisor", "assigned_to_technician", "in_progr
 
 async function notifyUsers(userIds, payload) {
   const unique = [...new Set((userIds || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))];
-  await Promise.all(unique.map((userId) => createNotification({ userId, ...payload })));
+  const results = await Promise.allSettled(
+    unique.map((userId) => createNotification({ userId, ...payload })),
+  );
+  results.forEach((result, idx) => {
+    if (result.status === "rejected") {
+      console.warn(
+        `NOTIF_SEND_PARTIAL_FAILED user_id=${unique[idx]} error=${result.reason?.message || result.reason || "unknown"}`,
+      );
+    }
+  });
 }
 
 function collectTaskParticipants(taskLike = {}) {
