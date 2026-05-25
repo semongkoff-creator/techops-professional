@@ -1266,7 +1266,7 @@ table { width: 100%; min-width: 780px; }
   border: 0 !important;
   box-shadow: none !important;
   border-radius: 0 !important;
-  margin-top: -8px !important;
+  margin-top: 4px !important;
   min-height: 0 !important;
 }
 .monitoring-desktop-shell .topbar-pro { background: #f2f4f7 !important; }
