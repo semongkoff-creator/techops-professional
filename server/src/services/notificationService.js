@@ -75,7 +75,10 @@ async function getFirebaseMessagingClient() {
     serviceAccount = null;
   }
 
-  if (!serviceAccount) return null;
+  if (!serviceAccount) {
+    console.warn("FCM_DISABLED: Firebase credential is missing on server environment.");
+    return null;
+  }
 
   try {
     firebaseAdminMod = firebaseAdminMod || (await import("firebase-admin"));
@@ -139,7 +142,7 @@ async function sendPushFirebaseAdmin({ token, title, body, data }) {
       android: {
         priority: "high",
         notification: {
-          channelId: "task_updates",
+          channelId: "task_updates_v2",
           sound: "default",
         },
       },
@@ -202,6 +205,16 @@ export async function createNotification({
   );
   const tokenRows = Array.isArray(rows) ? rows : [];
   if (!tokenRows.length) {
+    // Fallback: beberapa device/token lama bisa belum ter-flag active.
+    const [anyRows] = await pool.execute(
+      "SELECT push_token, provider, device_id FROM user_push_tokens WHERE user_id=? ORDER BY updated_at DESC LIMIT 5",
+      [userId],
+    );
+    if (Array.isArray(anyRows) && anyRows.length) {
+      tokenRows.push(...anyRows);
+    }
+  }
+  if (!tokenRows.length) {
     // Backward compatibility: fallback to legacy single token on users table.
     const [legacyRows] = await pool.execute("SELECT push_token FROM users WHERE id=? LIMIT 1", [userId]);
     const legacyToken = legacyRows?.[0]?.push_token || null;
@@ -222,7 +235,10 @@ export async function createNotification({
     deep_link: taskId ? `/tasks?task_id=${taskId}` : referenceType === "report" ? "/reports" : "/notifications",
   };
 
-  if (!tokenRows.length) return;
+  if (!tokenRows.length) {
+    console.warn(`PUSH_SKIPPED: no token for user_id=${userId}`);
+    return;
+  }
 
   for (const tokenRow of tokenRows) {
     const token = String(tokenRow?.push_token || "").trim();

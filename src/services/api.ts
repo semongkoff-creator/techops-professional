@@ -206,6 +206,14 @@ export const api = {
           reject(new Error("Sesi login berakhir. Silakan login ulang."));
           return;
         }
+        if (status === 413) {
+          reject(new Error(payload?.message || "Ukuran file terlalu besar. Maks gambar 5MB dan video 25MB."));
+          return;
+        }
+        if (status === 415) {
+          reject(new Error(payload?.message || "Format file tidak didukung. Gunakan JPG/JPEG/PNG/WEBP/MP4/MOV/WEBM/OGG."));
+          return;
+        }
         const retryable = status >= 500 || status === 429;
         if (retryable && attempt < maxAttempts) {
           onRetry?.(attempt + 1);

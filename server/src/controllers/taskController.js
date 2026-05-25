@@ -32,6 +32,10 @@ function fileExtFromMime(mime) {
   return "jpg";
 }
 
+function isVideoMime(mime = "") {
+  return String(mime).toLowerCase().startsWith("video/");
+}
+
 async function uploadTaskImageToSupabase({ file, userId }) {
   const supabaseUrl = process.env.SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -80,6 +84,16 @@ function saveTaskImageToLocal({ file, userId }) {
 
 export async function uploadTaskDocumentationImage(req, res) {
   if (!req.file) return res.status(400).json({ message: "File dokumentasi wajib dipilih" });
+  const maxImageBytes = 5 * 1024 * 1024;
+  const maxVideoBytes = 25 * 1024 * 1024;
+  const fileSize = Number(req.file.size || 0);
+  const isVideo = isVideoMime(req.file.mimetype);
+  if (!isVideo && fileSize > maxImageBytes) {
+    return res.status(413).json({ message: "Ukuran gambar maksimal 5MB." });
+  }
+  if (isVideo && fileSize > maxVideoBytes) {
+    return res.status(413).json({ message: "Ukuran video maksimal 25MB." });
+  }
   const taskId = Number(req.body?.task_id || 0);
   if (taskId > 0) {
     const [rows] = await pool.execute("SELECT id, technician_id FROM tasks WHERE id=? LIMIT 1", [taskId]);

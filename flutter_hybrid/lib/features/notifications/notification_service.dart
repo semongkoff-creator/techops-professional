@@ -154,6 +154,28 @@ class NotificationService {
     _incrementBadge();
   }
 
+  Future<void> showTestNotification() async {
+    const payload = '{"type":"test_notification","deep_link":"/notifications"}';
+    await _local.show(
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      'Test Notification',
+      'Notifikasi lokal Android berhasil tampil.',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channelId,
+          _channelName,
+          channelDescription: _channelDesc,
+          importance: Importance.max,
+          priority: Priority.high,
+          sound: _customSound,
+          playSound: true,
+        ),
+      ),
+      payload: payload,
+    );
+    _incrementBadge();
+  }
+
   void queueWebCommand(String payload) {
     _queuedWebCommands.add(payload);
   }

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
@@ -225,12 +226,28 @@ class _HybridWebViewPageState extends State<HybridWebViewPage>
     final String deviceId = (data['device_id'] as String? ?? '').trim();
 
     if (uploadUrl.isEmpty || bearerToken.isEmpty) {
+      final payload = jsonEncode({
+        'ok': false,
+        'message': 'Konfigurasi upload belum lengkap (URL/token kosong).',
+      });
+      await _controller.runJavaScript(
+        "window.dispatchEvent(new CustomEvent('native-upload-result', { detail: $payload }));",
+      );
       return;
     }
 
     try {
       final uri = _resolveUploadUri(uploadUrl);
-      final mimeType = picked.mimeType ?? 'application/octet-stream';
+      final mimeType = _normalizeMimeType(
+        picked.mimeType,
+        picked.name,
+        picked.path,
+      );
+      final fileSize = await picked.length();
+      debugPrint(
+        'NATIVE_UPLOAD_START task=$taskId file=${picked.name} '
+        'mime=$mimeType size=$fileSize url=$uri token=${bearerToken.isNotEmpty}',
+      );
       final request = http.MultipartRequest('POST', uri)
         ..headers['Authorization'] = 'Bearer $bearerToken'
         ..headers['Accept'] = 'application/json'
@@ -251,6 +268,10 @@ class _HybridWebViewPageState extends State<HybridWebViewPage>
       final response = await http.Response.fromStream(streamed);
       final bodyText = response.body;
       final Map<String, dynamic> decoded = _safeJsonMap(bodyText);
+      debugPrint(
+        'NATIVE_UPLOAD_RESPONSE status=${response.statusCode} '
+        'body=${bodyText.substring(0, bodyText.length > 350 ? 350 : bodyText.length)}',
+      );
 
       if (response.statusCode >= 200 &&
           response.statusCode < 300 &&
@@ -263,10 +284,17 @@ class _HybridWebViewPageState extends State<HybridWebViewPage>
           "window.dispatchEvent(new CustomEvent('native-upload-result', { detail: $payload }));",
         );
       } else {
+        String fallbackMessage = 'Upload gagal (${response.statusCode}).';
+        if (response.statusCode == 413) {
+          fallbackMessage = 'Ukuran file terlalu besar. Maks gambar 5MB dan video 25MB.';
+        } else if (response.statusCode == 415) {
+          fallbackMessage = 'Format file tidak didukung. Gunakan JPG/JPEG/PNG/WEBP/MP4/MOV/WEBM/OGG.';
+        } else if (response.statusCode == 401 || response.statusCode == 403) {
+          fallbackMessage = 'Sesi login berakhir atau akses ditolak. Silakan login ulang.';
+        }
         final payload = jsonEncode({
           'ok': false,
-          'message': decoded['message'] ??
-              'Upload gagal (${response.statusCode}). Pastikan login masih aktif dan file valid.',
+          'message': decoded['message'] ?? fallbackMessage,
         });
         await _controller.runJavaScript(
           "window.dispatchEvent(new CustomEvent('native-upload-result', { detail: $payload }));",
@@ -308,6 +336,22 @@ class _HybridWebViewPageState extends State<HybridWebViewPage>
     final subtype = chunks[1].trim();
     if (type.isEmpty || subtype.isEmpty) return null;
     return MediaType(type, subtype);
+  }
+
+  String _normalizeMimeType(String? mime, String fileName, String filePath) {
+    final normalized = String(mime ?? '').trim().toLowerCase();
+    if (normalized.isNotEmpty && normalized != 'application/octet-stream') {
+      return normalized;
+    }
+    final source = '${fileName.toLowerCase()}|${filePath.toLowerCase()}';
+    if (source.contains('.jpg') || source.contains('.jpeg')) return 'image/jpeg';
+    if (source.contains('.png')) return 'image/png';
+    if (source.contains('.webp')) return 'image/webp';
+    if (source.contains('.mp4')) return 'video/mp4';
+    if (source.contains('.mov')) return 'video/quicktime';
+    if (source.contains('.webm')) return 'video/webm';
+    if (source.contains('.ogg')) return 'video/ogg';
+    return 'application/octet-stream';
   }
 
   Future<void> _pushPendingNativeEventsToWeb() async {
@@ -364,6 +408,16 @@ class _HybridWebViewPageState extends State<HybridWebViewPage>
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: true,
+      floatingActionButton: kDebugMode
+          ? FloatingActionButton.extended(
+              heroTag: 'test_notif_fab',
+              onPressed: () async {
+                await NotificationService.instance.showTestNotification();
+              },
+              label: const Text('Test Notification'),
+              icon: const Icon(Icons.notifications_active_outlined),
+            )
+          : null,
       body: SafeArea(
         child: Stack(
           children: [
