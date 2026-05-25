@@ -1225,7 +1225,7 @@ table { width: 100%; min-width: 780px; }
   .logout { margin-top: auto; color: #eef4ff; }
   .content {
     padding: 0 1.5rem 1.5rem;
-    background: transparent;
+    background: #f2f4f7;
     max-width: none;
     width: 100%;
     margin: 0;
@@ -1233,7 +1233,7 @@ table { width: 100%; min-width: 780px; }
     overflow-y: auto;
     overflow-x: hidden;
   }
-  .monitoring-desktop-shell .content { background: #f6f8ff; }
+  .monitoring-desktop-shell .content { background: #f2f4f7; }
   .topbar {
     background: #f2f4f7;
     border: 1px solid #d9dee7;
