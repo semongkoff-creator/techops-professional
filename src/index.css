@@ -1252,8 +1252,8 @@ table { width: 100%; min-width: 780px; }
   box-shadow: 0 8px 20px rgba(26, 54, 108, .07);
 }
 .topbar-pro {
-  position: sticky;
-  top: 0;
+  position: static;
+  top: auto;
   z-index: 7000;
   overflow: visible !important;
   display: grid;
