@@ -367,6 +367,7 @@ export async function updateTask(req, res) {
     location = task.location,
     priority = task.priority,
     supervisor_id = task.supervisor_id,
+    staff_id = task.created_by_atasan_id,
     due_date = task.due_date,
     documentation_image_url = task.documentation_image_url,
     completion_percent = task.completion_percent,
@@ -378,8 +379,8 @@ export async function updateTask(req, res) {
     task.status === "assigned_to_technician" ? "assigned_to_technician" : "draft_to_supervisor";
 
   await pool.execute(
-    "UPDATE tasks SET title=?, description=?, customer=?, location=?, priority=?, supervisor_id=?, technician_id=?, documentation_image_url=?, due_date=?, completion_percent=?, status=?, updated_at=NOW() WHERE id=?",
-    [title, description, customer || null, location, priority, supervisor_id, req.body.technician_id ?? task.technician_id, documentation_image_url || null, due_date || null, pct, nextStatus, req.params.id],
+    "UPDATE tasks SET title=?, description=?, customer=?, location=?, priority=?, supervisor_id=?, created_by_atasan_id=?, technician_id=?, documentation_image_url=?, due_date=?, completion_percent=?, status=?, updated_at=NOW() WHERE id=?",
+    [title, description, customer || null, location, priority, supervisor_id, staff_id ?? null, req.body.technician_id ?? task.technician_id, documentation_image_url || null, due_date || null, pct, nextStatus, req.params.id],
   );
   await createAuditLog({
     actorUserId: req.user.id,
@@ -400,7 +401,12 @@ export async function updateTask(req, res) {
       req.body.supervisor_id ?? task.supervisor_id,
       req.body.staff_id ?? task.created_by_atasan_id,
       req.body.technician_id ?? task.technician_id,
-      ...collectTaskParticipants(task),
+      ...collectTaskParticipants({
+        ...task,
+        supervisor_id: req.body.supervisor_id ?? task.supervisor_id,
+        created_by_atasan_id: req.body.staff_id ?? task.created_by_atasan_id,
+        technician_id: req.body.technician_id ?? task.technician_id,
+      }),
     ];
     await notifyUsers(targets.filter((id) => Number(id) !== Number(req.user.id)), {
       ...notif,

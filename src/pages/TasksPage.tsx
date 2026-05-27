@@ -676,6 +676,7 @@ export function TasksPage({ isDesktop, user, tasks, supervisors, technicians, st
         location: editTask.location,
         priority: editTask.priority,
         supervisor_id: editTask.supervisor_id,
+        staff_id: typeof editTask.created_by_atasan_id === "number" ? editTask.created_by_atasan_id : undefined,
         technician_id: typeof editTask.technician_id === "number" ? editTask.technician_id : undefined,
         due_date: editTask.due_date,
         documentation_image_url: editTask.documentation_image_url || undefined, completion_percent: editTask.completion_percent,
